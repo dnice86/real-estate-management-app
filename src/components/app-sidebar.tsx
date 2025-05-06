@@ -58,8 +58,8 @@ const data = {
       isActive: true,
       items: [
         {
-          title: "History",
-          url: "#",
+          title: "File Dropzone",
+          url: "/upload",
         },
         {
           title: "Starred",
