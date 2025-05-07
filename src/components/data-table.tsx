@@ -29,6 +29,7 @@ import {
   IconCircleCheckFilled,
   IconDotsVertical,
   IconFilter,
+  IconGripHorizontal,
   IconGripVertical,
   IconLayoutColumns,
   IconLoader,
@@ -39,6 +40,7 @@ import {
 import {
   ColumnDef,
   ColumnFiltersState,
+  ColumnResizeMode,
   Row,
   SortingState,
   VisibilityState,
@@ -142,6 +144,37 @@ function DragHandle({ id }: { id: number }) {
       <IconGripVertical className="text-muted-foreground size-3" />
       <span className="sr-only">Drag to reorder</span>
     </Button>
+  )
+}
+
+// Resizable header component with drag handle
+function ResizableHeader({
+  header,
+  table,
+}: {
+  header: any
+  table: any
+}) {
+  return (
+    <div
+      className="flex items-center justify-between h-full relative"
+      style={{ width: header.getSize() }}
+    >
+      <div className="flex-1 overflow-hidden text-ellipsis">
+        {flexRender(header.column.columnDef.header, header.getContext())}
+      </div>
+      {header.column.getCanResize() && (
+        <div
+          onMouseDown={header.getResizeHandler()}
+          onTouchStart={header.getResizeHandler()}
+          className={`absolute right-0 top-0 h-full w-2 cursor-col-resize select-none touch-none flex items-center justify-center ${
+            header.column.getIsResizing() ? "bg-primary/20 opacity-100" : "opacity-0 hover:opacity-100"
+          }`}
+        >
+          <IconGripHorizontal className="h-4 w-4 text-muted-foreground" />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -289,6 +322,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
+    size: 40,
   },
   {
     id: "select",
@@ -316,6 +350,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
+    size: 40,
   },
   {
     accessorKey: "header",
@@ -327,6 +362,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     },
     enableHiding: false,
     filterFn: arrFilterFn,
+    size: 250,
   },
   {
     accessorKey: "type",
@@ -341,6 +377,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       </div>
     ),
     filterFn: arrFilterFn,
+    size: 150,
   },
   {
     accessorKey: "status",
@@ -358,6 +395,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       </Badge>
     ),
     filterFn: arrFilterFn,
+    size: 120,
   },
   {
     accessorKey: "target",
@@ -388,6 +426,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       </form>
     ),
     filterFn: arrFilterFn,
+    size: 80,
   },
   {
     accessorKey: "limit",
@@ -418,6 +457,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       </form>
     ),
     filterFn: arrFilterFn,
+    size: 80,
   },
   {
     accessorKey: "reviewer",
@@ -455,6 +495,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       )
     },
     filterFn: arrFilterFn,
+    size: 180,
   },
   {
     id: "actions",
@@ -482,6 +523,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
+    size: 60,
   },
 ]
 
@@ -595,6 +637,8 @@ export function DataTable({
     pageIndex: 0,
     pageSize: 10,
   })
+  const [columnResizeMode] = React.useState<ColumnResizeMode>('onChange')
+  const [columnSizing, setColumnSizing] = React.useState({})
   const sortableId = React.useId()
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -607,9 +651,20 @@ export function DataTable({
     [data]
   )
 
+  // Set default column sizes
+  const defaultColumn = React.useMemo(
+    () => ({
+      minSize: 40,
+      size: 150,
+      maxSize: 500,
+    }),
+    []
+  )
+
   const table = useReactTable({
     data,
     columns,
+    defaultColumn,
     state: {
       sorting,
       columnVisibility,
@@ -617,7 +672,10 @@ export function DataTable({
       columnFilters,
       globalFilter,
       pagination,
+      columnSizing,
     },
+    columnResizeMode,
+    onColumnSizingChange: setColumnSizing,
     globalFilterFn: globalFilterFn,
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
@@ -741,19 +799,21 @@ export function DataTable({
             sensors={sensors}
             id={sortableId}
           >
-            <Table>
+            <Table className="w-full table-fixed">
               <TableHeader className="bg-muted sticky top-0 z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {
                       return (
-                        <TableHead key={header.id} colSpan={header.colSpan}>
+                        <TableHead 
+                          key={header.id} 
+                          colSpan={header.colSpan}
+                          style={{ width: header.getSize() }}
+                          className={header.column.getCanResize() ? "relative select-none" : ""}
+                        >
                           {header.isPlaceholder
                             ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                            : <ResizableHeader header={header} table={table} />}
                         </TableHead>
                       )
                     })}
