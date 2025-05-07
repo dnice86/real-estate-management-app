@@ -735,7 +735,7 @@ function GlobalSearch({ table }: { table: any }) {
 
 // Cell renderer configuration type
 export type CellConfig = {
-  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom' | 'editable'
+  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom' | 'editable' | 'dropdown'
   options?: Record<string, any>
   editable?: boolean
   onSave?: (rowId: string, field: string, value: any) => void
@@ -879,6 +879,54 @@ function EditableCell({
   );
 }
 
+// Dropdown Cell component for selecting from a list of options
+function DropdownCell({ 
+  value: initialValue, 
+  row, 
+  column, 
+  onSave,
+  options = []
+}: { 
+  value: any, 
+  row: any, 
+  column: any, 
+  onSave?: (rowId: string, field: string, value: any) => void,
+  options: { label: string, value: string }[]
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  
+  const handleSelect = (newValue: string) => {
+    if (newValue !== initialValue && onSave) {
+      onSave(row.original.id.toString(), column.id, newValue);
+    }
+    setIsOpen(false);
+  };
+  
+  // Find the selected option label
+  const selectedOption = options.find(option => option.value === initialValue);
+  const displayValue = selectedOption ? selectedOption.label : initialValue;
+  
+  return (
+    <Select
+      value={initialValue}
+      onValueChange={handleSelect}
+    >
+      <SelectTrigger className="h-8 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50">
+        <SelectValue placeholder="Select option">
+          {displayValue}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 // Cell renderer function based on configuration
   const renderCell = React.useCallback(({ row, column, value, cellConfig }: { 
     row: any, 
@@ -893,7 +941,7 @@ function EditableCell({
     const { type, options = {}, editable, onSave } = cellConfig;
     
     // If the cell is editable, use the EditableCell component
-    if (editable) {
+    if (editable && type !== 'dropdown') {
       return (
         <EditableCell 
           value={value} 
@@ -943,6 +991,17 @@ function EditableCell({
             row={row} 
             column={column} 
             onSave={onSave} 
+          />
+        );
+      
+      case 'dropdown':
+        return (
+          <DropdownCell 
+            value={value} 
+            row={row} 
+            column={column} 
+            onSave={onSave}
+            options={options.items || []}
           />
         );
       

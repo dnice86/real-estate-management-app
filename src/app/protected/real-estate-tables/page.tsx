@@ -43,7 +43,10 @@ interface Partner {
 
 
 // Create column definitions for each table type
-const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
+const createBankTransactionColumns = (
+  bookingCategories: BookingCategory[], 
+  partners: Partner[]
+): ColumnConfig<BankTransaction>[] => [
   {
     accessorKey: "description",
     header: "Description",
@@ -83,16 +86,28 @@ const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
     accessorKey: "booking_category",
     header: "Booking Category",
     cellConfig: {
-      type: 'text',
-      editable: true
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: bookingCategories.map(category => ({
+          label: category.Name,
+          value: category.Name
+        }))
+      }
     }
   },
   {
     accessorKey: "partner",
     header: "Partner",
     cellConfig: {
-      type: 'text',
-      editable: true
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: partners.map(partner => ({
+          label: partner.full_name,
+          value: partner.full_name
+        }))
+      }
     }
   },
 ];
@@ -287,6 +302,7 @@ export default async function RealEstateTables() {
                       <EditableDataTable 
                         data={processedBookingCategories} 
                         columns={createBookingCategoryColumns()}
+                        tableName="booking_categories"
                       />
                     )}
                   </TabsContent>
@@ -297,7 +313,8 @@ export default async function RealEstateTables() {
                     ) : (
                       <EditableDataTable 
                         data={processedBankTransactions} 
-                        columns={createBankTransactionColumns()}
+                        columns={createBankTransactionColumns(processedBookingCategories, processedPartners)}
+                        tableName="bank_transactions"
                       />
                     )}
                   </TabsContent>
@@ -309,6 +326,7 @@ export default async function RealEstateTables() {
                       <EditableDataTable 
                         data={processedPartners} 
                         columns={createPartnerColumns()}
+                        tableName="partner"
                       />
                     )}
                   </TabsContent>
