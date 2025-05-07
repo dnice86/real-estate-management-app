@@ -28,11 +28,13 @@ import {
   IconChevronsRight,
   IconCircleCheckFilled,
   IconDotsVertical,
+  IconFilter,
   IconGripVertical,
   IconLayoutColumns,
   IconLoader,
   IconPlus,
   IconTrendingUp,
+  IconX,
 } from "@tabler/icons-react"
 import {
   ColumnDef,
@@ -84,6 +86,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -105,6 +112,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { TrendingUpIcon } from "lucide-react"
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet"
 
 export const schema = z.object({
   id: z.number(),
@@ -136,11 +145,132 @@ function DragHandle({ id }: { id: number }) {
   )
 }
 
+// DataTableColumnHeader component for filter dropdown
+function DataTableColumnHeader({
+  column,
+  title,
+  table,
+}: {
+  column: any
+  title: string
+  table: any
+}) {
+  const uniqueValues = Array.from(
+    column.getFacetedUniqueValues().keys()
+  ).sort() as string[]
+
+  const isFiltered = column.getFilterValue() !== undefined
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        {title}
+      </div>
+      {column.getCanFilter() && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              aria-label={`Filter ${title}`}
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 ml-1"
+            >
+              <IconFilter className={isFiltered ? "text-primary" : "text-muted-foreground"} size={14} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[200px] p-2" align="start">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm">Filter by {title}</h4>
+                {isFiltered && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => column.setFilterValue(undefined)}
+                  >
+                    <IconX size={14} />
+                    <span className="sr-only">Clear filter</span>
+                  </Button>
+                )}
+              </div>
+              <Separator className="my-1" />
+              <div className="max-h-[200px] overflow-auto flex flex-col gap-1">
+                {uniqueValues.length > 0 ? (
+                  uniqueValues.map((value) => (
+                    <div key={value} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`${column.id}-${value}`}
+                        checked={
+                          isFiltered
+                            ? Array.isArray(column.getFilterValue())
+                              ? column.getFilterValue().includes(value)
+                              : column.getFilterValue() === value
+                            : false
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            if (isFiltered && Array.isArray(column.getFilterValue())) {
+                              column.setFilterValue([
+                                ...column.getFilterValue(),
+                                value,
+                              ])
+                            } else {
+                              column.setFilterValue([value])
+                            }
+                          } else {
+                            if (
+                              isFiltered &&
+                              Array.isArray(column.getFilterValue())
+                            ) {
+                              column.setFilterValue(
+                                column
+                                  .getFilterValue()
+                                  .filter((v: string) => v !== value)
+                              )
+                            } else {
+                              column.setFilterValue(undefined)
+                            }
+                          }
+                        }}
+                      />
+                      <Label
+                        htmlFor={`${column.id}-${value}`}
+                        className="text-xs font-normal cursor-pointer flex-1 truncate"
+                      >
+                        {value}
+                      </Label>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-muted-foreground text-center py-2">
+                    No values available
+                  </div>
+                )}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  )
+}
+
+// Define a custom filter function for arrays
+function arrFilterFn(row: any, columnId: string, filterValue: string[]) {
+  if (!filterValue || filterValue.length === 0) return true
+  const value = row.getValue(columnId)
+  return filterValue.includes(value)
+}
+
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
     id: "drag",
     header: () => null,
     cell: ({ row }) => <DragHandle id={row.original.id} />,
+    enableSorting: false,
+    enableHiding: false,
+    enableColumnFilter: false,
   },
   {
     id: "select",
@@ -167,18 +297,24 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     ),
     enableSorting: false,
     enableHiding: false,
+    enableColumnFilter: false,
   },
   {
     accessorKey: "header",
-    header: "Header",
+    header: ({ column, table }) => (
+      <DataTableColumnHeader column={column} title="Header" table={table} />
+    ),
     cell: ({ row }) => {
       return <TableCellViewer item={row.original} />
     },
     enableHiding: false,
+    filterFn: arrFilterFn,
   },
   {
     accessorKey: "type",
-    header: "Section Type",
+    header: ({ column, table }) => (
+      <DataTableColumnHeader column={column} title="Section Type" table={table} />
+    ),
     cell: ({ row }) => (
       <div className="w-32">
         <Badge variant="outline" className="text-muted-foreground px-1.5">
@@ -186,10 +322,13 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         </Badge>
       </div>
     ),
+    filterFn: arrFilterFn,
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: ({ column, table }) => (
+      <DataTableColumnHeader column={column} title="Status" table={table} />
+    ),
     cell: ({ row }) => (
       <Badge variant="outline" className="text-muted-foreground px-1.5">
         {row.original.status === "Done" ? (
@@ -200,10 +339,15 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         {row.original.status}
       </Badge>
     ),
+    filterFn: arrFilterFn,
   },
   {
     accessorKey: "target",
-    header: () => <div className="w-full text-right">Target</div>,
+    header: ({ column, table }) => (
+      <div className="flex items-center justify-end">
+        <DataTableColumnHeader column={column} title="Target" table={table} />
+      </div>
+    ),
     cell: ({ row }) => (
       <form
         onSubmit={(e) => {
@@ -225,10 +369,15 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         />
       </form>
     ),
+    filterFn: arrFilterFn,
   },
   {
     accessorKey: "limit",
-    header: () => <div className="w-full text-right">Limit</div>,
+    header: ({ column, table }) => (
+      <div className="flex items-center justify-end">
+        <DataTableColumnHeader column={column} title="Limit" table={table} />
+      </div>
+    ),
     cell: ({ row }) => (
       <form
         onSubmit={(e) => {
@@ -250,10 +399,13 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         />
       </form>
     ),
+    filterFn: arrFilterFn,
   },
   {
     accessorKey: "reviewer",
-    header: "Reviewer",
+    header: ({ column, table }) => (
+      <DataTableColumnHeader column={column} title="Reviewer" table={table} />
+    ),
     cell: ({ row }) => {
       const isAssigned = row.original.reviewer !== "Assign reviewer"
 
@@ -284,6 +436,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         </>
       )
     },
+    filterFn: arrFilterFn,
   },
   {
     id: "actions",
@@ -308,6 +461,9 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         </DropdownMenuContent>
       </DropdownMenu>
     ),
+    enableSorting: false,
+    enableHiding: false,
+    enableColumnFilter: false,
   },
 ]
 
@@ -333,6 +489,35 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
         </TableCell>
       ))}
     </TableRow>
+  )
+}
+
+// Status filter component with indicators for active filters
+function DataTableFilters({ table }: { table: any }) {
+  const filters = table.getState().columnFilters
+
+  // Check if any filters are active
+  const hasActiveFilters = filters.length > 0
+
+  return (
+    <div className="flex items-center gap-2">
+      {hasActiveFilters && (
+        <div className="flex items-center gap-1 mr-2">
+          <Badge variant="secondary" className="font-normal">
+            {filters.length} active filter{filters.length > 1 ? 's' : ''}
+          </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            onClick={() => table.resetColumnFilters()}
+          >
+            <IconX size={14} className="mr-1" />
+            Clear all
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -377,6 +562,7 @@ export function DataTable({
     },
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
+    enableColumnFilters: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -479,6 +665,11 @@ export function DataTable({
         value="outline"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
       >
+        {/* Filter indicators row */}
+        <div className="flex items-center justify-between">
+          <DataTableFilters table={table} />
+        </div>
+
         <div className="overflow-hidden rounded-lg border">
           <DndContext
             collisionDetection={closestCenter}
@@ -646,25 +837,23 @@ const chartConfig = {
     color: "var(--primary)",
   },
 } satisfies ChartConfig
-
 function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
   const isMobile = useIsMobile()
-
   return (
-    <Drawer direction={isMobile ? "bottom" : "right"}>
-      <DrawerTrigger asChild>
-        <Button variant="link" className="text-foreground w-fit px-0 text-left">
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="link" className="w-fit px-0 text-left text-foreground">
           {item.header}
         </Button>
-      </DrawerTrigger>
-      <DrawerContent>
-        <DrawerHeader className="gap-1">
-          <DrawerTitle>{item.header}</DrawerTitle>
-          <DrawerDescription>
+      </SheetTrigger>
+      <SheetContent side="right" className="flex flex-col">
+        <SheetHeader className="gap-1">
+          <SheetTitle>{item.header}</SheetTitle>
+          <SheetDescription>
             Showing total visitors for the last 6 months
-          </DrawerDescription>
-        </DrawerHeader>
-        <div className="flex flex-col gap-4 overflow-y-auto px-4 text-sm">
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-4 text-sm">
           {!isMobile && (
             <>
               <ChartContainer config={chartConfig}>
@@ -709,9 +898,9 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
               </ChartContainer>
               <Separator />
               <div className="grid gap-2">
-                <div className="flex gap-2 leading-none font-medium">
+                <div className="flex gap-2 font-medium leading-none">
                   Trending up by 5.2% this month{" "}
-                  <IconTrendingUp className="size-4" />
+                  <TrendingUpIcon className="size-4" />
                 </div>
                 <div className="text-muted-foreground">
                   Showing total visitors for the last 6 months. This is just
@@ -795,13 +984,15 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
             </div>
           </form>
         </div>
-        <DrawerFooter>
-          <Button>Submit</Button>
-          <DrawerClose asChild>
-            <Button variant="outline">Done</Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+        <SheetFooter className="mt-auto flex gap-2 sm:flex-col sm:space-x-0">
+          <Button className="w-full">Submit</Button>
+          <SheetClose asChild>
+            <Button variant="outline" className="w-full">
+              Done
+            </Button>
+          </SheetClose>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
