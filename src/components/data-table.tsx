@@ -117,6 +117,7 @@ import {
 import { TrendingUpIcon } from "lucide-react"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet"
 
+// This schema is kept for backward compatibility
 export const schema = z.object({
   id: z.number(),
   header: z.string(),
@@ -128,7 +129,7 @@ export const schema = z.object({
 })
 
 // Create a separate component for the drag handle
-function DragHandle({ id }: { id: number }) {
+function DragHandle({ id }: { id: string | number }) {
   const { attributes, listeners } = useSortable({
     id,
   })
@@ -470,7 +471,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <DataTableColumnHeader column={column} title="Header" table={table} />
     ),
     cell: ({ row }) => {
-      return <TableCellViewer item={row.original} />
+      return <TableCellViewer item={row.original} titleField="header" />
     },
     enableHiding: false,
     filterFn: arrFilterFn,
@@ -639,7 +640,8 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   },
 ]
 
-function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
+// Generic draggable row component
+function DraggableRow<TData extends { id: string | number }>({ row }: { row: Row<TData> }) {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
     id: row.original.id,
   })
@@ -731,11 +733,47 @@ function GlobalSearch({ table }: { table: any }) {
   )
 }
 
-export function DataTable({
+// Cell renderer configuration type
+export type CellConfig = {
+  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom'
+  options?: Record<string, any>
+}
+
+// Column definition without render functions
+export type ColumnConfig<TData> = {
+  accessorKey: keyof TData & string
+  header: string
+  cellConfig?: CellConfig
+  size?: number
+  enableSorting?: boolean
+  enableHiding?: boolean
+  enableColumnFilter?: boolean
+}
+
+// Define a generic type for the DataTable component
+export type DataTableProps<TData> = {
+  data: TData[]
+  columns?: ColumnConfig<TData>[]
+  enableDragAndDrop?: boolean
+  enableRowSelection?: boolean
+  enableColumnFilters?: boolean
+  enableGlobalFilter?: boolean
+  enablePagination?: boolean
+  enableColumnResizing?: boolean
+  defaultPageSize?: number
+}
+
+export function DataTable<TData extends { id: string | number }>({
   data: initialData,
-}: {
-  data: z.infer<typeof schema>[]
-}) {
+  columns: customColumns,
+  enableDragAndDrop = true,
+  enableRowSelection = true,
+  enableColumnFilters = true,
+  enableGlobalFilter = true,
+  enablePagination = true,
+  enableColumnResizing = true,
+  defaultPageSize = 10,
+}: DataTableProps<TData>) {
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
@@ -747,9 +785,9 @@ export function DataTable({
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: defaultPageSize,
   })
-  const [columnResizeMode] = React.useState<ColumnResizeMode>('onChange')
+  const [columnResizeMode] = React.useState<ColumnResizeMode>(enableColumnResizing ? 'onChange' : 'onEnd')
   const [columnSizing, setColumnSizing] = React.useState({})
   const sortableId = React.useId()
   const sensors = useSensors(
@@ -759,7 +797,7 @@ export function DataTable({
   )
 
   const dataIds = React.useMemo<UniqueIdentifier[]>(
-    () => data?.map(({ id }) => id) || [],
+    () => data?.map((item) => item.id) || [],
     [data]
   )
 
@@ -773,9 +811,175 @@ export function DataTable({
     []
   )
 
+  // Cell renderer function based on configuration
+  const renderCell = React.useCallback(({ row, column, value, cellConfig }: { 
+    row: any, 
+    column: any, 
+    value: any,
+    cellConfig?: CellConfig
+  }) => {
+    if (!cellConfig) {
+      return value;
+    }
+
+    const { type, options = {} } = cellConfig;
+    
+    switch (type) {
+      case 'text':
+        return value;
+      
+      case 'badge':
+        return (
+          <Badge variant="outline" className="text-muted-foreground px-1.5">
+            {value}
+          </Badge>
+        );
+      
+      case 'currency':
+        return typeof value === 'number' 
+          ? new Intl.NumberFormat('en-US', { style: 'currency', currency: options.currency || 'USD' }).format(value)
+          : value;
+      
+      case 'date':
+        return value ? new Date(value).toLocaleDateString() : '';
+      
+      case 'boolean':
+        return value ? (
+          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+        ) : null;
+      
+      case 'link':
+        const titleField = options.titleField || 'name';
+        return (
+          <Button variant="link" className="w-fit px-0 text-left text-foreground">
+            {row.original[titleField] || value}
+          </Button>
+        );
+      
+      default:
+        return value;
+    }
+  }, []);
+
+  // Store column configs in a ref to access them in cell renderers
+  const columnConfigsRef = React.useRef<Map<string, ColumnConfig<TData>>>(new Map());
+  
+  // Convert ColumnConfig to ColumnDef
+  const convertToColumnDef = React.useCallback((config: ColumnConfig<TData>): ColumnDef<TData> => {
+    // Generate a unique ID for this column if not using accessorKey as ID
+    const columnId = config.accessorKey as string;
+    
+    // Store the config in the ref for later access
+    columnConfigsRef.current.set(columnId, config);
+    
+    const columnDef: ColumnDef<TData> = {
+      accessorKey: config.accessorKey,
+      header: config.header,
+      size: config.size,
+      enableSorting: config.enableSorting,
+      enableHiding: config.enableHiding !== false,
+      enableColumnFilter: config.enableColumnFilter,
+      filterFn: arrFilterFn,
+    };
+
+    // Add cell renderer based on cellConfig
+    if (config.cellConfig) {
+      if (config.cellConfig.type === 'link') {
+        // Special case for link type - use TableCellViewer
+        columnDef.cell = ({ row }) => (
+          <TableCellViewer 
+            item={row.original} 
+            titleField={config.cellConfig?.options?.titleField || config.accessorKey as string} 
+          />
+        );
+      } else {
+        // For other types, use the generic renderer
+        columnDef.cell = ({ row, column }) => {
+          const value = row.getValue(column.id);
+          const columnConfig = columnConfigsRef.current.get(column.id);
+          return renderCell({ 
+            row, 
+            column, 
+            value, 
+            cellConfig: columnConfig?.cellConfig 
+          });
+        };
+      }
+    } else {
+      // Default cell renderer
+      columnDef.cell = ({ row, column }) => {
+        const value = row.getValue(column.id);
+        return value;
+      };
+    }
+
+    return columnDef;
+  }, [renderCell]);
+
+  // Use the provided columns or fall back to the default columns for backward compatibility
+  const effectiveColumns = React.useMemo(() => {
+    const finalColumns: ColumnDef<TData>[] = [];
+    
+    // Add utility columns if enabled
+    if (enableDragAndDrop) {
+      finalColumns.push({
+        id: "drag",
+        header: () => null,
+        cell: ({ row }) => <DragHandle id={row.original.id} />,
+        enableSorting: false,
+        enableHiding: false,
+        enableColumnFilter: false,
+        size: 40,
+      } as ColumnDef<TData>);
+    }
+    
+    if (enableRowSelection) {
+      finalColumns.push({
+        id: "select",
+        header: ({ table }) => (
+          <div className="flex items-center justify-center">
+            <Checkbox
+              checked={
+                table.getIsAllPageRowsSelected() ||
+                (table.getIsSomePageRowsSelected() && "indeterminate")
+              }
+              onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+              aria-label="Select all"
+            />
+          </div>
+        ),
+        cell: ({ row }) => (
+          <div className="flex items-center justify-center">
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+            />
+          </div>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        enableColumnFilter: false,
+        size: 40,
+      } as ColumnDef<TData>);
+    }
+    
+    // Add data columns
+    if (customColumns && customColumns.length > 0) {
+      // Convert ColumnConfig to ColumnDef
+      const dataColumns = customColumns.map(convertToColumnDef);
+      finalColumns.push(...dataColumns);
+    } else {
+      // For backward compatibility, use the default columns
+      finalColumns.push(...(columns as unknown as ColumnDef<TData>[]));
+    }
+    
+    return finalColumns;
+  }, [customColumns, enableDragAndDrop, enableRowSelection, convertToColumnDef]);
+
   const table = useReactTable({
     data,
-    columns,
+    columns: effectiveColumns,
     defaultColumn,
     state: {
       sorting,
@@ -1072,20 +1276,29 @@ const chartConfig = {
     color: "var(--primary)",
   },
 } satisfies ChartConfig
-function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
+// Generic TableCellViewer component
+export function TableCellViewer<TData extends Record<string, any>>({ 
+  item, 
+  titleField = "header" 
+}: { 
+  item: TData,
+  titleField?: string 
+}) {
   const isMobile = useIsMobile()
+  const title = item[titleField] || "Item Details"
+  
   return (
     <Sheet>
       <SheetTrigger asChild>
         <Button variant="link" className="w-fit px-0 text-left text-foreground">
-          {item.header}
+          {title}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col">
         <SheetHeader className="gap-1">
-          <SheetTitle>{item.header}</SheetTitle>
+          <SheetTitle>{title}</SheetTitle>
           <SheetDescription>
-            Showing total visitors for the last 6 months
+            Item Details
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto py-4 text-sm">
@@ -1147,76 +1360,21 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
             </>
           )}
           <form className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="header">Header</Label>
-              <Input id="header" defaultValue={item.header} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="type">Type</Label>
-                <Select defaultValue={item.type}>
-                  <SelectTrigger id="type" className="w-full">
-                    <SelectValue placeholder="Select a type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Table of Contents">
-                      Table of Contents
-                    </SelectItem>
-                    <SelectItem value="Executive Summary">
-                      Executive Summary
-                    </SelectItem>
-                    <SelectItem value="Technical Approach">
-                      Technical Approach
-                    </SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Capabilities">Capabilities</SelectItem>
-                    <SelectItem value="Focus Documents">
-                      Focus Documents
-                    </SelectItem>
-                    <SelectItem value="Narrative">Narrative</SelectItem>
-                    <SelectItem value="Cover Page">Cover Page</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="status">Status</Label>
-                <Select defaultValue={item.status}>
-                  <SelectTrigger id="status" className="w-full">
-                    <SelectValue placeholder="Select a status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Done">Done</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Not Started">Not Started</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="target">Target</Label>
-                <Input id="target" defaultValue={item.target} />
-              </div>
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="limit">Limit</Label>
-                <Input id="limit" defaultValue={item.limit} />
-              </div>
-            </div>
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="reviewer">Reviewer</Label>
-              <Select defaultValue={item.reviewer}>
-                <SelectTrigger id="reviewer" className="w-full">
-                  <SelectValue placeholder="Select a reviewer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Eddie Lake">Eddie Lake</SelectItem>
-                  <SelectItem value="Jamik Tashpulatov">
-                    Jamik Tashpulatov
-                  </SelectItem>
-                  <SelectItem value="Emily Whalen">Emily Whalen</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Dynamically render form fields based on the item's properties */}
+            {Object.entries(item).map(([key, value]) => {
+              // Skip the id field
+              if (key === 'id') return null;
+              
+              return (
+                <div key={key} className="flex flex-col gap-3">
+                  <Label htmlFor={key} className="capitalize">{key}</Label>
+                  <Input 
+                    id={key} 
+                    defaultValue={value as string} 
+                  />
+                </div>
+              );
+            })}
           </form>
         </div>
         <SheetFooter className="mt-auto flex gap-2 sm:flex-col sm:space-x-0">

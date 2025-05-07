@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { DataTable, schema } from "@/components/data-table"
+import { DataTable, schema, ColumnConfig, CellConfig } from "@/components/data-table"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/sidebar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/server"
-import { ColumnDef } from "@tanstack/react-table"
 import { z } from "zod"
 
 // Define interfaces for each table based on the actual schema
@@ -41,128 +40,160 @@ interface Partner {
   comment: string;
 }
 
-// Define column definitions for each table
-const bankTransactionsColumns: ColumnDef<BankTransaction>[] = [
+
+// Create column definitions for each table type using the new ColumnConfig approach
+const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
+  {
+    accessorKey: "description",
+    header: "Description",
+    cellConfig: {
+      type: 'link',
+      options: {
+        titleField: 'description'
+      }
+    }
+  },
   {
     accessorKey: "amount",
     header: "Amount",
+    cellConfig: {
+      type: 'currency',
+      options: {
+        currency: 'USD'
+      }
+    }
   },
   {
     accessorKey: "payer",
     header: "Payer",
-  },
-  {
-    accessorKey: "description",
-    header: "Description",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "date",
     header: "Date",
+    cellConfig: {
+      type: 'date'
+    }
   },
   {
     accessorKey: "booking_category",
     header: "Booking Category",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "partner",
     header: "Partner",
+    cellConfig: {
+      type: 'text'
+    }
   },
-]
+];
 
-const bookingCategoriesColumns: ColumnDef<BookingCategory>[] = [
+const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
   {
     accessorKey: "Name",
     header: "Name",
+    cellConfig: {
+      type: 'link',
+      options: {
+        titleField: 'Name'
+      }
+    }
   },
   {
     accessorKey: "Business - Main Category",
-    header: "Business - Main Category",
+    header: "Main Category",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "Business - Sub Category",
-    header: "Business - Sub Category",
+    header: "Sub Category",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "Schedule E - ID",
-    header: "Schedule E - ID",
+    header: "Schedule E ID",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "Schedule C - ID",
-    header: "Schedule C - ID",
+    header: "Schedule C ID",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "Comment",
     header: "Comment",
+    cellConfig: {
+      type: 'text'
+    }
   },
-]
+];
 
-const partnerColumns: ColumnDef<Partner>[] = [
+const createPartnerColumns = (): ColumnConfig<Partner>[] => [
   {
     accessorKey: "full_name",
     header: "Full Name",
+    cellConfig: {
+      type: 'link',
+      options: {
+        titleField: 'full_name'
+      }
+    }
   },
   {
     accessorKey: "name_1",
     header: "Name 1",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "name_2",
     header: "Name 2",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "status",
     header: "Status",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "category",
     header: "Category",
+    cellConfig: {
+      type: 'text'
+    }
   },
   {
     accessorKey: "comment",
     header: "Comment",
+    cellConfig: {
+      type: 'text'
+    }
   },
-]
+];
 
-
-// Type for the expected DataTable row structure
-type DataTableRow = z.infer<typeof schema>
-
-// Function to format booking categories data for the DataTable component
-function formatBookingCategoriesForTable(data: BookingCategory[]): DataTableRow[] {
+// Helper function to ensure each item has a string ID
+function ensureStringId<T extends Record<string, any>>(data: T[], idField: string = 'id'): (T & { id: string })[] {
   return data.map((item, index) => ({
-    id: index + 1,
-    header: item.Name || '',
-    type: item["Business - Main Category"] || '',
-    status: item["Business - Sub Category"] || '',
-    target: item["Schedule E - ID"] || '',
-    limit: item["Schedule C - ID"] || '',
-    reviewer: item.Comment || ''
-  }));
-}
-
-// Function to format bank transactions data for the DataTable component
-function formatBankTransactionsForTable(data: BankTransaction[]): DataTableRow[] {
-  return data.map((item, index) => ({
-    id: index + 1,
-    header: item.description || '',
-    type: item.booking_category || '',
-    status: item.payer || '',
-    target: item.amount?.toString() || '',
-    limit: item.date || '',
-    reviewer: item.partner || ''
-  }));
-}
-
-// Function to format partner data for the DataTable component
-function formatPartnersForTable(data: Partner[]): DataTableRow[] {
-  return data.map((item, index) => ({
-    id: index + 1,
-    header: item.full_name || '',
-    type: item.category || '',
-    status: item.status || '',
-    target: item.name_1 || '',
-    limit: item.name_2 || '',
-    reviewer: item.comment || ''
+    ...item,
+    id: item[idField]?.toString() || (index + 1).toString()
   }));
 }
 
@@ -187,17 +218,17 @@ export default async function RealEstateTables() {
     .select('*')
     .limit(100)
   
-  // Format data for the DataTable component
-  const formattedBookingCategories = bookingCategoriesData 
-    ? formatBookingCategoriesForTable(bookingCategoriesData) 
+  // Prepare data for the DataTable component
+  const processedBookingCategories = bookingCategoriesData 
+    ? ensureStringId(bookingCategoriesData) 
     : [];
     
-  const formattedBankTransactions = bankTransactionsData 
-    ? formatBankTransactionsForTable(bankTransactionsData) 
+  const processedBankTransactions = bankTransactionsData 
+    ? ensureStringId(bankTransactionsData) 
     : [];
     
-  const formattedPartners = partnerData 
-    ? formatPartnersForTable(partnerData) 
+  const processedPartners = partnerData 
+    ? ensureStringId(partnerData) 
     : [];
 
   return (
@@ -242,7 +273,10 @@ export default async function RealEstateTables() {
                     {bookingCategoriesError ? (
                       <div className="text-red-500">Error loading booking categories: {bookingCategoriesError.message}</div>
                     ) : (
-                      <DataTable data={formattedBookingCategories} />
+                      <DataTable 
+                        data={processedBookingCategories} 
+                        columns={createBookingCategoryColumns()}
+                      />
                     )}
                   </TabsContent>
                   
@@ -250,7 +284,10 @@ export default async function RealEstateTables() {
                     {bankTransactionsError ? (
                       <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
                     ) : (
-                      <DataTable data={formattedBankTransactions} />
+                      <DataTable 
+                        data={processedBankTransactions} 
+                        columns={createBankTransactionColumns()}
+                      />
                     )}
                   </TabsContent>
                   
@@ -258,7 +295,10 @@ export default async function RealEstateTables() {
                     {partnerError ? (
                       <div className="text-red-500">Error loading partners: {partnerError.message}</div>
                     ) : (
-                      <DataTable data={formattedPartners} />
+                      <DataTable 
+                        data={processedPartners} 
+                        columns={createPartnerColumns()}
+                      />
                     )}
                   </TabsContent>
                 </Tabs>
