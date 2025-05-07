@@ -194,11 +194,70 @@ function DataTableColumnHeader({
     column.getFacetedUniqueValues().keys()
   ).sort() as string[]
   
-  const filteredUniqueValues = uniqueValues.filter((value) => 
+  const filteredUniqueValues = uniqueValues.filter((value: string) => 
     String(value).toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const isFiltered = column.getFilterValue() !== undefined
+  
+  // Determine if all filtered values are selected
+  const areAllFilteredValuesSelected = React.useMemo(() => {
+    if (!isFiltered || filteredUniqueValues.length === 0) return false;
+    
+    const filterValue = column.getFilterValue();
+    if (!Array.isArray(filterValue)) return false;
+    
+      return filteredUniqueValues.every((value: string) => 
+        filterValue.includes(value)
+      );
+  }, [isFiltered, filteredUniqueValues, column]);
+
+  // Determine if some filtered values are selected (for indeterminate state)
+  const areSomeFilteredValuesSelected = React.useMemo(() => {
+    if (!isFiltered || filteredUniqueValues.length === 0) return false;
+    
+    const filterValue = column.getFilterValue();
+    if (!Array.isArray(filterValue)) return false;
+    
+      return filteredUniqueValues.some((value: string) => 
+        filterValue.includes(value)
+      ) && !areAllFilteredValuesSelected;
+  }, [isFiltered, filteredUniqueValues, column, areAllFilteredValuesSelected]);
+
+  // Handle "Select All" checkbox changes
+  const handleSelectAllFiltered = (checked: boolean) => {
+    if (checked) {
+      // If checked, add all filtered values to the current selection
+      const currentFilterValue = Array.isArray(column.getFilterValue()) 
+        ? column.getFilterValue() 
+        : [];
+      
+      // Get values that aren't in the filter yet
+      const valuesToAdd = filteredUniqueValues.filter(
+        (value: string) => !currentFilterValue.includes(value)
+      );
+      
+      if (valuesToAdd.length > 0) {
+        column.setFilterValue([...currentFilterValue, ...valuesToAdd]);
+      }
+    } else {
+      // If unchecked, remove all filtered values from the current selection
+      const currentFilterValue = Array.isArray(column.getFilterValue()) 
+        ? column.getFilterValue() 
+        : [];
+      
+      // Keep only values that aren't in the filtered list
+      const newFilterValue = currentFilterValue.filter(
+        (value: string) => !filteredUniqueValues.includes(value)
+      );
+      
+      if (newFilterValue.length === 0) {
+        column.setFilterValue(undefined);
+      } else {
+        column.setFilterValue(newFilterValue);
+      }
+    }
+  };
 
   return (
     <div className="flex items-center justify-between">
@@ -254,6 +313,31 @@ function DataTableColumnHeader({
                   </Button>
                 )}
               </div>
+              
+              {/* Select All checkbox for filtered values */}
+              {filteredUniqueValues.length > 0 && (
+                <div className="flex items-center gap-2 mb-1 px-1">
+                  <div className="relative flex items-center">
+                    <Checkbox
+                      id={`${column.id}-select-all-filtered`}
+                      checked={areAllFilteredValuesSelected || areSomeFilteredValuesSelected}
+                      onCheckedChange={handleSelectAllFiltered}
+                    />
+                    {areSomeFilteredValuesSelected && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="h-[7px] w-[7px] rounded-sm bg-primary" />
+                      </div>
+                    )}
+                  </div>
+                  <Label
+                    htmlFor={`${column.id}-select-all-filtered`}
+                    className="text-xs font-medium cursor-pointer"
+                  >
+                    Select all {filteredUniqueValues.length} {searchTerm ? "filtered" : ""} items
+                  </Label>
+                </div>
+              )}
+              
               <div className="max-h-[200px] overflow-auto flex flex-col gap-1">
                 {filteredUniqueValues.length > 0 ? (
                   filteredUniqueValues.map((value) => (
