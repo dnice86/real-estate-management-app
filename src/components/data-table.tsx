@@ -735,8 +735,10 @@ function GlobalSearch({ table }: { table: any }) {
 
 // Cell renderer configuration type
 export type CellConfig = {
-  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom'
+  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom' | 'editable'
   options?: Record<string, any>
+  editable?: boolean
+  onSave?: (rowId: string, field: string, value: any) => void
 }
 
 // Column definition without render functions
@@ -811,7 +813,73 @@ export function DataTable<TData extends { id: string | number }>({
     []
   )
 
-  // Cell renderer function based on configuration
+  // Editable Cell component for inline editing
+function EditableCell({ 
+  value: initialValue, 
+  row, 
+  column, 
+  onSave 
+}: { 
+  value: any, 
+  row: any, 
+  column: any, 
+  onSave?: (rowId: string, field: string, value: any) => void 
+}) {
+  const [value, setValue] = React.useState(initialValue);
+  const [isEditing, setIsEditing] = React.useState(false);
+  
+  // Update the internal state when the value prop changes
+  React.useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+  
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setValue(e.target.value);
+  };
+  
+  const handleBlur = () => {
+    setIsEditing(false);
+    if (value !== initialValue && onSave) {
+      onSave(row.original.id.toString(), column.id, value);
+    }
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      setIsEditing(false);
+      if (value !== initialValue && onSave) {
+        onSave(row.original.id.toString(), column.id, value);
+      }
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setValue(initialValue); // Reset to initial value
+    }
+  };
+  
+  if (isEditing) {
+    return (
+      <Input
+        value={value}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 border-transparent bg-transparent shadow-none focus-visible:border dark:bg-transparent"
+      />
+    );
+  }
+  
+  return (
+    <div 
+      className="cursor-pointer px-1 py-1 rounded hover:bg-muted/50"
+      onClick={() => setIsEditing(true)}
+    >
+      {value}
+    </div>
+  );
+}
+
+// Cell renderer function based on configuration
   const renderCell = React.useCallback(({ row, column, value, cellConfig }: { 
     row: any, 
     column: any, 
@@ -822,7 +890,19 @@ export function DataTable<TData extends { id: string | number }>({
       return value;
     }
 
-    const { type, options = {} } = cellConfig;
+    const { type, options = {}, editable, onSave } = cellConfig;
+    
+    // If the cell is editable, use the EditableCell component
+    if (editable) {
+      return (
+        <EditableCell 
+          value={value} 
+          row={row} 
+          column={column} 
+          onSave={onSave} 
+        />
+      );
+    }
     
     switch (type) {
       case 'text':
@@ -854,6 +934,16 @@ export function DataTable<TData extends { id: string | number }>({
           <Button variant="link" className="w-fit px-0 text-left text-foreground">
             {row.original[titleField] || value}
           </Button>
+        );
+      
+      case 'editable':
+        return (
+          <EditableCell 
+            value={value} 
+            row={row} 
+            column={column} 
+            onSave={onSave} 
+          />
         );
       
       default:

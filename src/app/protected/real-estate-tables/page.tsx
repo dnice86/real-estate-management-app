@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { DataTable, schema, ColumnConfig, CellConfig } from "@/components/data-table"
+import { ColumnConfig, CellConfig } from "@/components/data-table"
+import { EditableDataTable } from "@/components/editable-data-table"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
@@ -41,7 +42,7 @@ interface Partner {
 }
 
 
-// Create column definitions for each table type using the new ColumnConfig approach
+// Create column definitions for each table type
 const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
   {
     accessorKey: "description",
@@ -67,7 +68,8 @@ const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
     accessorKey: "payer",
     header: "Payer",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
@@ -81,14 +83,16 @@ const createBankTransactionColumns = (): ColumnConfig<BankTransaction>[] => [
     accessorKey: "booking_category",
     header: "Booking Category",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
     accessorKey: "partner",
     header: "Partner",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
 ];
@@ -108,14 +112,16 @@ const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
     accessorKey: "Business - Main Category",
     header: "Main Category",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
     accessorKey: "Business - Sub Category",
     header: "Sub Category",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
@@ -136,7 +142,8 @@ const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
     accessorKey: "Comment",
     header: "Comment",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
 ];
@@ -156,21 +163,24 @@ const createPartnerColumns = (): ColumnConfig<Partner>[] => [
     accessorKey: "name_1",
     header: "Name 1",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
     accessorKey: "name_2",
     header: "Name 2",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
     accessorKey: "status",
     header: "Status",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
@@ -184,7 +194,8 @@ const createPartnerColumns = (): ColumnConfig<Partner>[] => [
     accessorKey: "comment",
     header: "Comment",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
 ];
@@ -273,7 +284,7 @@ export default async function RealEstateTables() {
                     {bookingCategoriesError ? (
                       <div className="text-red-500">Error loading booking categories: {bookingCategoriesError.message}</div>
                     ) : (
-                      <DataTable 
+                      <EditableDataTable 
                         data={processedBookingCategories} 
                         columns={createBookingCategoryColumns()}
                       />
@@ -284,7 +295,7 @@ export default async function RealEstateTables() {
                     {bankTransactionsError ? (
                       <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
                     ) : (
-                      <DataTable 
+                      <EditableDataTable 
                         data={processedBankTransactions} 
                         columns={createBankTransactionColumns()}
                       />
@@ -295,7 +306,7 @@ export default async function RealEstateTables() {
                     {partnerError ? (
                       <div className="text-red-500">Error loading partners: {partnerError.message}</div>
                     ) : (
-                      <DataTable 
+                      <EditableDataTable 
                         data={processedPartners} 
                         columns={createPartnerColumns()}
                       />
