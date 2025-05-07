@@ -188,9 +188,15 @@ function DataTableColumnHeader({
   title: string
   table: any
 }) {
+  const [searchTerm, setSearchTerm] = React.useState("")
+  
   const uniqueValues = Array.from(
     column.getFacetedUniqueValues().keys()
   ).sort() as string[]
+  
+  const filteredUniqueValues = uniqueValues.filter((value) => 
+    String(value).toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const isFiltered = column.getFilterValue() !== undefined
 
@@ -228,9 +234,29 @@ function DataTableColumnHeader({
                 )}
               </div>
               <Separator className="my-1" />
+              {/* Search input for filtering values */}
+              <div className="relative mb-2">
+                <Input
+                  placeholder="Search values..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-8"
+                />
+                {searchTerm && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={() => setSearchTerm("")}
+                  >
+                    <IconX size={14} />
+                    <span className="sr-only">Clear search</span>
+                  </Button>
+                )}
+              </div>
               <div className="max-h-[200px] overflow-auto flex flex-col gap-1">
-                {uniqueValues.length > 0 ? (
-                  uniqueValues.map((value) => (
+                {filteredUniqueValues.length > 0 ? (
+                  filteredUniqueValues.map((value) => (
                     <div key={value} className="flex items-center gap-2">
                       <Checkbox
                         id={`${column.id}-${value}`}
@@ -277,7 +303,9 @@ function DataTableColumnHeader({
                   ))
                 ) : (
                   <div className="text-xs text-muted-foreground text-center py-2">
-                    No values available
+                    {uniqueValues.length > 0 
+                      ? "No matching values found" 
+                      : "No values available"}
                   </div>
                 )}
               </div>
