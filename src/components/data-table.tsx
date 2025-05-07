@@ -34,6 +34,8 @@ import {
   IconLayoutColumns,
   IconLoader,
   IconPlus,
+  IconSortAscending,
+  IconSortDescending,
   IconTrendingUp,
   IconX,
 } from "@tabler/icons-react"
@@ -156,6 +158,10 @@ function ResizableHeader({
   header: any
   table: any
 }) {
+  // For debugging
+  console.log(`Rendering header for column ${header.id}`);
+  console.log(`Header content:`, header.column.columnDef.header);
+  
   return (
     <div
       className="flex items-center justify-between h-full relative"
@@ -179,7 +185,7 @@ function ResizableHeader({
   )
 }
 
-// DataTableColumnHeader component for filter dropdown
+// DataTableColumnHeader component for filter dropdown and sorting
 function DataTableColumnHeader({
   column,
   title,
@@ -200,6 +206,9 @@ function DataTableColumnHeader({
   )
 
   const isFiltered = column.getFilterValue() !== undefined
+  
+  // Get current sort direction
+  const sortDirection = column.getIsSorted()
   
   // Determine if all filtered values are selected
   const areAllFilteredValuesSelected = React.useMemo(() => {
@@ -260,10 +269,34 @@ function DataTableColumnHeader({
     }
   };
 
+  // For debugging
+  const canSort = column.getCanSort();
+  console.log(`Column ${column.id} can sort: ${canSort}`);
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {title}
+        {canSort && (
+          <Button
+            aria-label={`Sort ${title}`}
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => column.toggleSorting(sortDirection === "asc")}
+          >
+            {sortDirection === "asc" ? (
+              <IconSortAscending className="text-primary" size={14} />
+            ) : sortDirection === "desc" ? (
+              <IconSortDescending className="text-primary" size={14} />
+            ) : (
+              <IconSortAscending className="text-muted-foreground" size={14} />
+            )}
+            <span className="sr-only">
+              Sort {title} {sortDirection === "asc" ? "descending" : "ascending"}
+            </span>
+          </Button>
+        )}
       </div>
       {column.getCanFilter() && (
         <Popover>
@@ -1023,9 +1056,16 @@ function DropdownCell({
     
     const columnDef: ColumnDef<TData> = {
       accessorKey: config.accessorKey,
-      header: config.header,
+      header: ({ column, table }) => {
+        // If the header is a string, wrap it in a DataTableColumnHeader component
+        if (typeof config.header === 'string') {
+          return <DataTableColumnHeader column={column} title={config.header} table={table} />;
+        }
+        // Otherwise, use the provided header
+        return config.header;
+      },
       size: config.size,
-      enableSorting: config.enableSorting,
+      enableSorting: config.enableSorting !== false,
       enableHiding: config.enableHiding !== false,
       enableColumnFilter: config.enableColumnFilter,
       filterFn: arrFilterFn,
