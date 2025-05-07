@@ -911,8 +911,8 @@ function DropdownCell({
       value={initialValue}
       onValueChange={handleSelect}
     >
-      <SelectTrigger className="h-8 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50">
-        <SelectValue placeholder="Select option">
+      <SelectTrigger className="h-8 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-foreground">
+        <SelectValue placeholder="Select option" className="text-foreground">
           {displayValue}
         </SelectValue>
       </SelectTrigger>
