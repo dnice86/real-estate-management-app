@@ -263,6 +263,24 @@ function arrFilterFn(row: any, columnId: string, filterValue: string[]) {
   return filterValue.includes(value)
 }
 
+// Define a custom global filter function
+function globalFilterFn(row: any, columnId: string, filterValue: string) {
+  // Skip filtering on certain columns
+  if (columnId === 'actions' || columnId === 'select' || columnId === 'drag') {
+    return true;
+  }
+  
+  const value = row.getValue(columnId);
+  
+  // Handle different value types
+  if (value === null || value === undefined) {
+    return false;
+  }
+  
+  // Convert to string and perform case-insensitive search
+  return String(value).toLowerCase().includes(filterValue.toLowerCase());
+}
+
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
     id: "drag",
@@ -495,27 +513,65 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
 // Status filter component with indicators for active filters
 function DataTableFilters({ table }: { table: any }) {
   const filters = table.getState().columnFilters
+  const globalFilter = table.getState().globalFilter
 
   // Check if any filters are active
-  const hasActiveFilters = filters.length > 0
+  const hasColumnFilters = filters.length > 0
+  const hasGlobalFilter = Boolean(globalFilter)
+  const hasActiveFilters = hasColumnFilters || hasGlobalFilter
+  
+  // Calculate total number of active filters
+  const totalFilters = filters.length + (hasGlobalFilter ? 1 : 0)
 
   return (
     <div className="flex items-center gap-2">
       {hasActiveFilters && (
         <div className="flex items-center gap-1 mr-2">
           <Badge variant="secondary" className="font-normal">
-            {filters.length} active filter{filters.length > 1 ? 's' : ''}
+            {totalFilters} active filter{totalFilters > 1 ? 's' : ''}
           </Badge>
           <Button
             variant="ghost"
             size="sm"
             className="h-7 px-2"
-            onClick={() => table.resetColumnFilters()}
+            onClick={() => {
+              table.resetColumnFilters()
+              if (hasGlobalFilter) {
+                table.setGlobalFilter("")
+              }
+            }}
           >
             <IconX size={14} className="mr-1" />
             Clear all
           </Button>
         </div>
+      )}
+    </div>
+  )
+}
+
+// Global search component
+function GlobalSearch({ table }: { table: any }) {
+  const globalFilter = table.getState().globalFilter || "";
+  
+  return (
+    <div className="flex items-center relative">
+      <Input
+        placeholder="Search all columns..."
+        value={globalFilter}
+        onChange={(event) => table.setGlobalFilter(event.target.value)}
+        className="max-w-sm pr-8"
+      />
+      {globalFilter && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="absolute right-1 h-6 w-6 p-0"
+          onClick={() => table.setGlobalFilter("")}
+        >
+          <IconX size={14} />
+          <span className="sr-only">Clear search</span>
+        </Button>
       )}
     </div>
   )
@@ -533,6 +589,7 @@ export function DataTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   )
+  const [globalFilter, setGlobalFilter] = React.useState("")
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
@@ -558,14 +615,17 @@ export function DataTable({
       columnVisibility,
       rowSelection,
       columnFilters,
+      globalFilter,
       pagination,
     },
+    globalFilterFn: globalFilterFn,
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
     enableColumnFilters: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
@@ -665,9 +725,12 @@ export function DataTable({
         value="outline"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
       >
-        {/* Filter indicators row */}
+        {/* Search and filter row */}
         <div className="flex items-center justify-between">
-          <DataTableFilters table={table} />
+          <div className="flex items-center gap-4">
+            <GlobalSearch table={table} />
+            <DataTableFilters table={table} />
+          </div>
         </div>
 
         <div className="overflow-hidden rounded-lg border">
