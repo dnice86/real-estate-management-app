@@ -1,12 +1,19 @@
-// Remove this line:
-// import { updateSession } from '@/middleware'
-import { type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
-// Define updateSession in this file
-export function updateSession(request: NextRequest) {
-  // Your updateSession logic here
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public (public files)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+  ],
 }
 
 export async function middleware(request: NextRequest) {
-  // Your middleware logic here, which can now call updateSession
+  // Temporarily bypass authentication for debugging
+  return NextResponse.next()
 }

@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { ColumnConfig, CellConfig } from "@/components/data-table"
 import { EditableDataTable } from "@/components/editable-data-table"
+import { CsvUploadBankTransactions } from "@/components/csv-upload-bank-transactions"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
@@ -311,11 +312,18 @@ export default async function RealEstateTables() {
                     {bankTransactionsError ? (
                       <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
                     ) : (
-                      <EditableDataTable 
-                        data={processedBankTransactions} 
-                        columns={createBankTransactionColumns(processedBookingCategories, processedPartners)}
-                        tableName="bank_transactions"
-                      />
+                      <div className="space-y-6">
+                        <CsvUploadBankTransactions />
+                        
+                        <div className="mt-8">
+                          <h2 className="text-lg font-semibold mb-4">Bank Transactions</h2>
+                          <EditableDataTable 
+                            data={processedBankTransactions} 
+                            columns={createBankTransactionColumns(processedBookingCategories, processedPartners)}
+                            tableName="bank_transactions"
+                          />
+                        </div>
+                      </div>
                     )}
                   </TabsContent>
                   
