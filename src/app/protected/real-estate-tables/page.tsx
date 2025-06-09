@@ -1,13 +1,12 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { ColumnConfig, CellConfig } from "@/components/data-table"
+import { CompanyProvider } from "@/components/company-context"
 import { EditableDataTable } from "@/components/editable-data-table"
-import { CsvUploadBankTransactions } from "@/components/csv-upload-bank-transactions"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/server"
 import { z } from "zod"
 
@@ -32,21 +31,37 @@ interface BookingCategory {
   Comment: string;
 }
 
-interface Partner {
+interface Tenant {
   id: string;
   name_1: string;
   name_2: string;
-  status: string;
-  category: string;
   full_name: string;
-  comment: string;
+  status: string;
+  lease_start_date: string;
+  lease_end_date: string;
+  email: string;
+  phone: string;
+  cold_rent: number;
+  total_rent: number;
 }
 
+interface BusinessPartner {
+  id: string;
+  name_1: string;
+  name_2: string;
+  full_name: string;
+  status: string;
+  business_type: string;
+  contact_email: string;
+  contact_phone: string;
+  comment: string;
+}
 
 // Create column definitions for each table type
 const createBankTransactionColumns = (
   bookingCategories: BookingCategory[], 
-  partners: Partner[]
+  tenants: Tenant[],
+  businessPartners: BusinessPartner[]
 ): ColumnConfig<BankTransaction>[] => [
   {
     accessorKey: "description",
@@ -104,10 +119,16 @@ const createBankTransactionColumns = (
       type: 'dropdown',
       editable: true,
       options: {
-        items: partners.map(partner => ({
-          label: partner.full_name,
-          value: partner.full_name
-        }))
+        items: [
+          ...tenants.map(tenant => ({
+            label: `${tenant.full_name} (Tenant)`,
+            value: tenant.full_name
+          })),
+          ...businessPartners.map(partner => ({
+            label: `${partner.full_name} (Business)`,
+            value: partner.full_name
+          }))
+        ]
       }
     }
   },
@@ -164,7 +185,7 @@ const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
   },
 ];
 
-const createPartnerColumns = (): ColumnConfig<Partner>[] => [
+const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
   {
     accessorKey: "full_name",
     header: "Full Name",
@@ -176,16 +197,79 @@ const createPartnerColumns = (): ColumnConfig<Partner>[] => [
     }
   },
   {
-    accessorKey: "name_1",
-    header: "Name 1",
+    accessorKey: "status",
+    header: "Status",
     cellConfig: {
       type: 'text',
       editable: true
     }
   },
   {
-    accessorKey: "name_2",
-    header: "Name 2",
+    accessorKey: "email",
+    header: "Email",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "phone",
+    header: "Phone",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "cold_rent",
+    header: "Cold Rent",
+    cellConfig: {
+      type: 'currency',
+      options: {
+        currency: 'USD'
+      }
+    }
+  },
+  {
+    accessorKey: "total_rent",
+    header: "Total Rent",
+    cellConfig: {
+      type: 'currency',
+      options: {
+        currency: 'USD'
+      }
+    }
+  },
+  {
+    accessorKey: "lease_start_date",
+    header: "Lease Start",
+    cellConfig: {
+      type: 'date'
+    }
+  },
+  {
+    accessorKey: "lease_end_date",
+    header: "Lease End",
+    cellConfig: {
+      type: 'date'
+    }
+  },
+];
+
+const createBusinessPartnersColumns = (): ColumnConfig<BusinessPartner>[] => [
+  {
+    accessorKey: "full_name",
+    header: "Company Name",
+    cellConfig: {
+      type: 'link',
+      options: {
+        titleField: 'full_name'
+      }
+    }
+  },
+  {
+    accessorKey: "business_type",
+    header: "Business Type",
     cellConfig: {
       type: 'text',
       editable: true
@@ -200,10 +284,19 @@ const createPartnerColumns = (): ColumnConfig<Partner>[] => [
     }
   },
   {
-    accessorKey: "category",
-    header: "Category",
+    accessorKey: "contact_email",
+    header: "Contact Email",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "contact_phone",
+    header: "Contact Phone",
+    cellConfig: {
+      type: 'text',
+      editable: true
     }
   },
   {
@@ -224,10 +317,18 @@ function ensureStringId<T extends Record<string, any>>(data: T[], idField: strin
   }));
 }
 
-
-export default async function RealEstateTables() {
+export default async function RealEstateTables({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
+  // Await the searchParams
+  const resolvedSearchParams = await searchParams
   // Create Supabase client
   const supabase = await createClient()
+  
+  // Get the active tab from URL parameters, default to 'booking-categories'
+  const activeTab = resolvedSearchParams.tab || 'booking-categories'
   
   // Fetch data from Supabase tables
   const { data: bookingCategoriesData, error: bookingCategoriesError } = await supabase
@@ -240,8 +341,13 @@ export default async function RealEstateTables() {
     .select('*')
     .limit(100)
   
-  const { data: partnerData, error: partnerError } = await supabase
-    .from('partner')
+  const { data: tenantsData, error: tenantsError } = await supabase
+    .from('tenants')
+    .select('*')
+    .limit(100)
+    
+  const { data: businessPartnersData, error: businessPartnersError } = await supabase
+    .from('business_partners')
     .select('*')
     .limit(100)
   
@@ -254,96 +360,114 @@ export default async function RealEstateTables() {
     ? ensureStringId(bankTransactionsData) 
     : [];
     
-  const processedPartners = partnerData 
-    ? ensureStringId(partnerData) 
+  const processedTenants = tenantsData 
+    ? ensureStringId(tenantsData) 
+    : [];
+    
+  const processedBusinessPartners = businessPartnersData 
+    ? ensureStringId(businessPartnersData) 
     : [];
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <div className="px-4 lg:px-6">
-                <h1 className="text-2xl font-bold mb-4">Real Estate Management</h1>
-                
-                
-                {/* Display any errors at the top level */}
-                {(bookingCategoriesError || bankTransactionsError || partnerError) && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                    <p className="font-bold">There were errors fetching data:</p>
-                    <ul className="list-disc pl-5">
-                      {bookingCategoriesError && <li>Booking Categories: {bookingCategoriesError.message}</li>}
-                      {bankTransactionsError && <li>Bank Transactions: {bankTransactionsError.message}</li>}
-                      {partnerError && <li>Partners: {partnerError.message}</li>}
-                    </ul>
-                  </div>
-                )}
-                
-                <Tabs defaultValue="booking-categories" className="w-full">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="booking-categories">Booking Categories</TabsTrigger>
-                    <TabsTrigger value="bank-transactions">Bank Transactions</TabsTrigger>
-                    <TabsTrigger value="partners">Partners</TabsTrigger>
-                  </TabsList>
+    <CompanyProvider>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-1">
+              <div className="flex flex-col gap-2 py-2 md:gap-3 md:py-3">
+                <div className="px-4 lg:px-6">
+                  {/* Display any errors at the top level */}
+                  {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError) && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                      <p className="font-bold">There were errors fetching data:</p>
+                      <ul className="list-disc pl-5">
+                        {bookingCategoriesError && <li>Booking Categories: {bookingCategoriesError.message}</li>}
+                        {bankTransactionsError && <li>Bank Transactions: {bankTransactionsError.message}</li>}
+                        {tenantsError && <li>Tenants: {tenantsError.message}</li>}
+                        {businessPartnersError && <li>Business Partners: {businessPartnersError.message}</li>}
+                      </ul>
+                    </div>
+                  )}
                   
-                  <TabsContent value="booking-categories">
-                    {bookingCategoriesError ? (
-                      <div className="text-red-500">Error loading booking categories: {bookingCategoriesError.message}</div>
-                    ) : (
-                      <EditableDataTable 
-                        data={processedBookingCategories} 
-                        columns={createBookingCategoryColumns()}
-                        tableName="booking_categories"
-                      />
-                    )}
-                  </TabsContent>
+                  {/* Conditional rendering based on active tab */}
+                  {activeTab === 'booking-categories' && (
+                    <div>
+                      {bookingCategoriesError ? (
+                        <div className="text-red-500">Error loading booking categories: {bookingCategoriesError.message}</div>
+                      ) : (
+                        <EditableDataTable 
+                          data={processedBookingCategories} 
+                          columns={createBookingCategoryColumns()}
+                          tableName="booking_categories"
+                          bookingCategories={processedBookingCategories}
+                          partners={[...processedTenants, ...processedBusinessPartners]}
+                        />
+                      )}
+                    </div>
+                  )}
                   
-                  <TabsContent value="bank-transactions">
-                    {bankTransactionsError ? (
-                      <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
-                    ) : (
-                      <div className="space-y-6">
-                        <CsvUploadBankTransactions />
-                        
-                        <div className="mt-8">
-                          <h2 className="text-lg font-semibold mb-4">Bank Transactions</h2>
-                          <EditableDataTable 
-                            data={processedBankTransactions} 
-                            columns={createBankTransactionColumns(processedBookingCategories, processedPartners)}
-                            tableName="bank_transactions"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </TabsContent>
+                  {activeTab === 'bank-transactions' && (
+                    <div>
+                      {bankTransactionsError ? (
+                        <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
+                      ) : (
+                        <EditableDataTable 
+                          data={processedBankTransactions} 
+                          columns={createBankTransactionColumns(processedBookingCategories, processedTenants, processedBusinessPartners)}
+                          tableName="bank_transactions"
+                          bookingCategories={processedBookingCategories}
+                          partners={[...processedTenants, ...processedBusinessPartners]}
+                        />
+                      )}
+                    </div>
+                  )}
                   
-                  <TabsContent value="partners">
-                    {partnerError ? (
-                      <div className="text-red-500">Error loading partners: {partnerError.message}</div>
-                    ) : (
-                      <EditableDataTable 
-                        data={processedPartners} 
-                        columns={createPartnerColumns()}
-                        tableName="partner"
-                      />
-                    )}
-                  </TabsContent>
-                </Tabs>
+                  {activeTab === 'tenants' && (
+                    <div>
+                      {tenantsError ? (
+                        <div className="text-red-500">Error loading tenants: {tenantsError.message}</div>
+                      ) : (
+                        <EditableDataTable 
+                          data={processedTenants} 
+                          columns={createTenantsColumns()}
+                          tableName="tenants"
+                          bookingCategories={processedBookingCategories}
+                          partners={[...processedTenants, ...processedBusinessPartners]}
+                        />
+                      )}
+                    </div>
+                  )}
+                  
+                  {activeTab === 'business-partners' && (
+                    <div>
+                      {businessPartnersError ? (
+                        <div className="text-red-500">Error loading business partners: {businessPartnersError.message}</div>
+                      ) : (
+                        <EditableDataTable 
+                          data={processedBusinessPartners} 
+                          columns={createBusinessPartnersColumns()}
+                          tableName="business_partners"
+                          bookingCategories={processedBookingCategories}
+                          partners={[...processedTenants, ...processedBusinessPartners]}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </CompanyProvider>
   )
 }

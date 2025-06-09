@@ -110,12 +110,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
 import { TrendingUpIcon } from "lucide-react"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet"
 
@@ -142,7 +136,7 @@ function DragHandle({ id }: { id: string | number }) {
       {...listeners}
       variant="ghost"
       size="icon"
-      className="text-muted-foreground size-7 hover:bg-transparent"
+      className="text-muted-foreground size-6 hover:bg-transparent"
     >
       <IconGripVertical className="text-muted-foreground size-3" />
       <span className="sr-only">Drag to reorder</span>
@@ -178,7 +172,7 @@ function ResizableHeader({
             header.column.getIsResizing() ? "bg-primary/20 opacity-100" : "opacity-0 hover:opacity-100"
           }`}
         >
-          <IconGripHorizontal className="h-4 w-4 text-muted-foreground" />
+          <IconGripHorizontal className="h-3 w-3 text-muted-foreground" />
         </div>
       )}
     </div>
@@ -275,22 +269,22 @@ function DataTableColumnHeader({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        {title}
+      <div className="flex items-center gap-1">
+        <span className="text-xs">{title}</span>
         {canSort && (
           <Button
             aria-label={`Sort ${title}`}
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0"
+            className="h-5 w-5 p-0"
             onClick={() => column.toggleSorting(sortDirection === "asc")}
           >
             {sortDirection === "asc" ? (
-              <IconSortAscending className="text-primary" size={14} />
+              <IconSortAscending className="text-primary" size={12} />
             ) : sortDirection === "desc" ? (
-              <IconSortDescending className="text-primary" size={14} />
+              <IconSortDescending className="text-primary" size={12} />
             ) : (
-              <IconSortAscending className="text-muted-foreground" size={14} />
+              <IconSortAscending className="text-muted-foreground" size={12} />
             )}
             <span className="sr-only">
               Sort {title} {sortDirection === "asc" ? "descending" : "ascending"}
@@ -305,23 +299,23 @@ function DataTableColumnHeader({
               aria-label={`Filter ${title}`}
               variant="ghost"
               size="sm"
-              className="h-6 w-6 p-0 ml-1"
+              className="h-5 w-5 p-0 ml-1"
             >
-              <IconFilter className={isFiltered ? "text-primary" : "text-muted-foreground"} size={14} />
+              <IconFilter className={isFiltered ? "text-primary" : "text-muted-foreground"} size={12} />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[200px] p-2" align="start">
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium text-sm">Filter by {title}</h4>
+                <h4 className="font-medium text-xs">Filter by {title}</h4>
                 {isFiltered && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0"
+                    className="h-5 w-5 p-0"
                     onClick={() => column.setFilterValue(undefined)}
                   >
-                    <IconX size={14} />
+                    <IconX size={12} />
                     <span className="sr-only">Clear filter</span>
                   </Button>
                 )}
@@ -333,16 +327,16 @@ function DataTableColumnHeader({
                   placeholder="Search values..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-8"
+                  className="h-6 text-xs"
                 />
                 {searchTerm && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-4 w-4 p-0"
                     onClick={() => setSearchTerm("")}
                   >
-                    <IconX size={14} />
+                    <IconX size={10} />
                     <span className="sr-only">Clear search</span>
                   </Button>
                 )}
@@ -468,7 +462,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
-    size: 40,
+    size: 32,
   },
   {
     id: "select",
@@ -496,7 +490,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
-    size: 40,
+    size: 32,
   },
   {
     accessorKey: "header",
@@ -517,7 +511,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     ),
     cell: ({ row }) => (
       <div className="w-32">
-        <Badge variant="outline" className="text-muted-foreground px-1.5">
+        <Badge variant="outline" className="text-muted-foreground px-1 py-0 text-xs">
           {row.original.type}
         </Badge>
       </div>
@@ -531,11 +525,11 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       <DataTableColumnHeader column={column} title="Status" table={table} />
     ),
     cell: ({ row }) => (
-      <Badge variant="outline" className="text-muted-foreground px-1.5">
+      <Badge variant="outline" className="text-muted-foreground px-1 py-0 text-xs">
         {row.original.status === "Done" ? (
-          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400 mr-1" size={12} />
         ) : (
-          <IconLoader />
+          <IconLoader className="mr-1" size={12} />
         )}
         {row.original.status}
       </Badge>
@@ -565,7 +559,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
           Target
         </Label>
         <Input
-          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-5 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent text-xs"
           defaultValue={row.original.target}
           id={`${row.original.id}-target`}
         />
@@ -596,7 +590,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
           Limit
         </Label>
         <Input
-          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-5 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent text-xs"
           defaultValue={row.original.limit}
           id={`${row.original.id}-limit`}
         />
@@ -614,7 +608,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
       const isAssigned = row.original.reviewer !== "Assign reviewer"
 
       if (isAssigned) {
-        return row.original.reviewer
+        return <span className="text-xs">{row.original.reviewer}</span>
       }
 
       return (
@@ -624,7 +618,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
           </Label>
           <Select>
             <SelectTrigger
-              className="w-38 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate"
+              className="w-38 h-6 text-xs **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate"
               size="sm"
               id={`${row.original.id}-reviewer`}
             >
@@ -650,10 +644,10 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
+            className="data-[state=open]:bg-muted text-muted-foreground flex size-6"
             size="icon"
           >
-            <IconDotsVertical />
+            <IconDotsVertical size={14} />
             <span className="sr-only">Open menu</span>
           </Button>
         </DropdownMenuTrigger>
@@ -669,7 +663,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
     enableSorting: false,
     enableHiding: false,
     enableColumnFilter: false,
-    size: 60,
+    size: 48,
   },
 ]
 
@@ -684,14 +678,14 @@ function DraggableRow<TData extends { id: string | number }>({ row }: { row: Row
       data-state={row.getIsSelected() && "selected"}
       data-dragging={isDragging}
       ref={setNodeRef}
-      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80 h-6"
       style={{
         transform: CSS.Transform.toString(transform),
         transition: transition,
       }}
     >
       {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
+        <TableCell key={cell.id} className="py-0.5 px-1.5 text-xs">
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </TableCell>
       ))}
@@ -716,13 +710,13 @@ function DataTableFilters({ table }: { table: any }) {
     <div className="flex items-center gap-2">
       {hasActiveFilters && (
         <div className="flex items-center gap-1 mr-2">
-          <Badge variant="secondary" className="font-normal">
+          <Badge variant="secondary" className="font-normal text-xs">
             {totalFilters} active filter{totalFilters > 1 ? 's' : ''}
           </Badge>
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2"
+            className="h-6 px-2 text-xs"
             onClick={() => {
               table.resetColumnFilters()
               if (hasGlobalFilter) {
@@ -730,7 +724,7 @@ function DataTableFilters({ table }: { table: any }) {
               }
             }}
           >
-            <IconX size={14} className="mr-1" />
+            <IconX size={12} className="mr-1" />
             Clear all
           </Button>
         </div>
@@ -749,16 +743,16 @@ function GlobalSearch({ table }: { table: any }) {
         placeholder="Search all columns..."
         value={globalFilter}
         onChange={(event) => table.setGlobalFilter(event.target.value)}
-        className="max-w-sm pr-8"
+        className="max-w-sm pr-8 h-8 text-sm"
       />
       {globalFilter && (
         <Button
           variant="ghost"
           size="sm"
-          className="absolute right-1 h-6 w-6 p-0"
+          className="absolute right-1 h-5 w-5 p-0"
           onClick={() => table.setGlobalFilter("")}
         >
-          <IconX size={14} />
+          <IconX size={12} />
           <span className="sr-only">Clear search</span>
         </Button>
       )}
@@ -807,7 +801,7 @@ export function DataTable<TData extends { id: string | number }>({
   enableGlobalFilter = true,
   enablePagination = true,
   enableColumnResizing = true,
-  defaultPageSize = 10,
+  defaultPageSize = 20,
 }: DataTableProps<TData>) {
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
@@ -839,8 +833,8 @@ export function DataTable<TData extends { id: string | number }>({
   // Set default column sizes
   const defaultColumn = React.useMemo(
     () => ({
-      minSize: 40,
-      size: 150,
+      minSize: 32,
+      size: 120,
       maxSize: 500,
     }),
     []
@@ -897,14 +891,14 @@ function EditableCell({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         autoFocus
-        className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 border-transparent bg-transparent shadow-none focus-visible:border dark:bg-transparent"
+        className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-5 border-transparent bg-transparent shadow-none focus-visible:border dark:bg-transparent text-xs"
       />
     );
   }
   
   return (
     <div 
-      className="cursor-pointer px-1 py-1 rounded hover:bg-muted/50"
+      className="cursor-pointer px-1 py-0.5 rounded hover:bg-muted/50 text-xs"
       onClick={() => setIsEditing(true)}
     >
       {value}
@@ -944,7 +938,7 @@ function DropdownCell({
       value={initialValue}
       onValueChange={handleSelect}
     >
-      <SelectTrigger className="h-8 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-foreground">
+      <SelectTrigger className="h-6 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-foreground text-xs">
         <SelectValue placeholder="Select option" className="text-foreground">
           {displayValue}
         </SelectValue>
@@ -968,7 +962,7 @@ function DropdownCell({
     cellConfig?: CellConfig
   }) => {
     if (!cellConfig) {
-      return value;
+      return <span className="text-xs">{value}</span>;
     }
 
     const { type, options = {}, editable, onSave } = cellConfig;
@@ -987,32 +981,32 @@ function DropdownCell({
     
     switch (type) {
       case 'text':
-        return value;
+        return <span className="text-xs">{value}</span>;
       
       case 'badge':
         return (
-          <Badge variant="outline" className="text-muted-foreground px-1.5">
+          <Badge variant="outline" className="text-muted-foreground px-1 py-0 text-xs">
             {value}
           </Badge>
         );
       
       case 'currency':
-        return typeof value === 'number' 
+        return <span className="text-xs">{typeof value === 'number' 
           ? new Intl.NumberFormat('en-US', { style: 'currency', currency: options.currency || 'USD' }).format(value)
-          : value;
+          : value}</span>;
       
       case 'date':
-        return value ? new Date(value).toLocaleDateString() : '';
+        return <span className="text-xs">{value ? new Date(value).toLocaleDateString() : ''}</span>;
       
       case 'boolean':
         return value ? (
-          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" />
+          <IconCircleCheckFilled className="fill-green-500 dark:fill-green-400" size={12} />
         ) : null;
       
       case 'link':
         const titleField = options.titleField || 'name';
         return (
-          <Button variant="link" className="w-fit px-0 text-left text-foreground">
+          <Button variant="link" className="w-fit px-0 text-left text-foreground text-xs h-auto">
             {row.original[titleField] || value}
           </Button>
         );
@@ -1039,7 +1033,7 @@ function DropdownCell({
         );
       
       default:
-        return value;
+        return <span className="text-xs">{value}</span>;
     }
   }, []);
 
@@ -1098,7 +1092,7 @@ function DropdownCell({
       // Default cell renderer
       columnDef.cell = ({ row, column }) => {
         const value = row.getValue(column.id);
-        return value;
+        return <span className="text-xs">{value}</span>;
       };
     }
 
@@ -1118,7 +1112,7 @@ function DropdownCell({
         enableSorting: false,
         enableHiding: false,
         enableColumnFilter: false,
-        size: 40,
+        size: 32,
       } as ColumnDef<TData>);
     }
     
@@ -1149,7 +1143,7 @@ function DropdownCell({
         enableSorting: false,
         enableHiding: false,
         enableColumnFilter: false,
-        size: 40,
+        size: 32,
       } as ColumnDef<TData>);
     }
     
@@ -1211,45 +1205,19 @@ function DropdownCell({
   }
 
   return (
-    <Tabs
-      defaultValue="outline"
-      className="w-full flex-col justify-start gap-6"
-    >
-      <div className="flex items-center justify-between px-4 lg:px-6">
-        <Label htmlFor="view-selector" className="sr-only">
-          View
-        </Label>
-        <Select defaultValue="outline">
-          <SelectTrigger
-            className="flex w-fit @4xl/main:hidden"
-            size="sm"
-            id="view-selector"
-          >
-            <SelectValue placeholder="Select a view" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="outline">Outline</SelectItem>
-            <SelectItem value="past-performance">Past Performance</SelectItem>
-            <SelectItem value="key-personnel">Key Personnel</SelectItem>
-            <SelectItem value="focus-documents">Focus Documents</SelectItem>
-          </SelectContent>
-        </Select>
-        <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
-          <TabsTrigger value="outline">Outline</TabsTrigger>
-          <TabsTrigger value="past-performance">
-            Past Performance <Badge variant="secondary">3</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="key-personnel">
-            Key Personnel <Badge variant="secondary">2</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="focus-documents">Focus Documents</TabsTrigger>
-        </TabsList>
+    <div className="w-full flex-col justify-start gap-6">
+      {/* Search, filter, and action buttons row */}
+      <div className="flex items-center justify-between px-4 lg:px-6 mb-2">
+        <div className="flex items-center gap-4">
+          <GlobalSearch table={table} />
+          <DataTableFilters table={table} />
+        </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
                 <IconLayoutColumns />
-                <span className="hidden lg:inline">Customize Columns</span>
+                <span className="hidden lg:inline">Columns</span>
                 <span className="lg:hidden">Columns</span>
                 <IconChevronDown />
               </Button>
@@ -1278,24 +1246,28 @@ function DropdownCell({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Select defaultValue="Outline">
+            <SelectTrigger
+              className="flex w-fit"
+              size="sm"
+            >
+              <SelectValue placeholder="Select a view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="outline">Outline</SelectItem>
+              <SelectItem value="past-performance">Past Performance</SelectItem>
+              <SelectItem value="key-personnel">Key Personnel</SelectItem>
+              <SelectItem value="focus-documents">Focus Documents</SelectItem>
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm">
             <IconPlus />
             <span className="hidden lg:inline">Add Section</span>
           </Button>
         </div>
       </div>
-      <TabsContent
-        value="outline"
-        className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
-      >
-        {/* Search and filter row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <GlobalSearch table={table} />
-            <DataTableFilters table={table} />
-          </div>
-        </div>
 
+      <div className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6">
         <div className="overflow-hidden rounded-lg border">
           <DndContext
             collisionDetection={closestCenter}
@@ -1304,17 +1276,17 @@ function DropdownCell({
             sensors={sensors}
             id={sortableId}
           >
-            <Table className="w-full table-fixed">
+            <Table className="w-full table-fixed text-sm">
               <TableHeader className="bg-muted sticky top-0 z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
+                  <TableRow key={headerGroup.id} className="h-6">
                     {headerGroup.headers.map((header) => {
                       return (
                         <TableHead 
                           key={header.id} 
                           colSpan={header.colSpan}
                           style={{ width: header.getSize() }}
-                          className={header.column.getCanResize() ? "relative select-none" : ""}
+                          className={`py-0.5 px-1.5 text-xs font-medium ${header.column.getCanResize() ? "relative select-none" : ""}`}
                         >
                           {header.isPlaceholder
                             ? null
@@ -1336,10 +1308,10 @@ function DropdownCell({
                     ))}
                   </SortableContext>
                 ) : (
-                  <TableRow>
+                  <TableRow className="h-6">
                     <TableCell
                       colSpan={columns.length}
-                      className="h-24 text-center"
+                      className="h-8 text-center text-xs py-0.5 px-1.5"
                     >
                       No results.
                     </TableCell>
@@ -1350,13 +1322,13 @@ function DropdownCell({
           </DndContext>
         </div>
         <div className="flex items-center justify-between px-4">
-          <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
+          <div className="text-muted-foreground hidden flex-1 text-xs lg:flex">
             {table.getFilteredSelectedRowModel().rows.length} of{" "}
             {table.getFilteredRowModel().rows.length} row(s) selected.
           </div>
           <div className="flex w-full items-center gap-8 lg:w-fit">
             <div className="hidden items-center gap-2 lg:flex">
-              <Label htmlFor="rows-per-page" className="text-sm font-medium">
+              <Label htmlFor="rows-per-page" className="text-xs font-medium">
                 Rows per page
               </Label>
               <Select
@@ -1365,7 +1337,7 @@ function DropdownCell({
                   table.setPageSize(Number(value))
                 }}
               >
-                <SelectTrigger size="sm" className="w-20" id="rows-per-page">
+                <SelectTrigger size="sm" className="w-20 h-7 text-xs" id="rows-per-page">
                   <SelectValue
                     placeholder={table.getState().pagination.pageSize}
                   />
@@ -1379,70 +1351,52 @@ function DropdownCell({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex w-fit items-center justify-center text-sm font-medium">
+            <div className="flex w-fit items-center justify-center text-xs font-medium">
               Page {table.getState().pagination.pageIndex + 1} of{" "}
               {table.getPageCount()}
             </div>
             <div className="ml-auto flex items-center gap-2 lg:ml-0">
               <Button
                 variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex"
+                className="hidden h-7 w-7 p-0 lg:flex"
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
                 <span className="sr-only">Go to first page</span>
-                <IconChevronsLeft />
+                <IconChevronsLeft size={14} />
               </Button>
               <Button
                 variant="outline"
-                className="size-8"
-                size="icon"
+                className="h-7 w-7 p-0"
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
                 <span className="sr-only">Go to previous page</span>
-                <IconChevronLeft />
+                <IconChevronLeft size={14} />
               </Button>
               <Button
                 variant="outline"
-                className="size-8"
-                size="icon"
+                className="h-7 w-7 p-0"
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
                 <span className="sr-only">Go to next page</span>
-                <IconChevronRight />
+                <IconChevronRight size={14} />
               </Button>
               <Button
                 variant="outline"
-                className="hidden size-8 lg:flex"
-                size="icon"
+                className="hidden h-7 w-7 p-0 lg:flex"
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
               >
                 <span className="sr-only">Go to last page</span>
-                <IconChevronsRight />
+                <IconChevronsRight size={14} />
               </Button>
             </div>
           </div>
         </div>
-      </TabsContent>
-      <TabsContent
-        value="past-performance"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent value="key-personnel" className="flex flex-col px-4 lg:px-6">
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-      <TabsContent
-        value="focus-documents"
-        className="flex flex-col px-4 lg:px-6"
-      >
-        <div className="aspect-video w-full flex-1 rounded-lg border border-dashed"></div>
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   )
 }
 
@@ -1465,6 +1419,7 @@ const chartConfig = {
     color: "var(--primary)",
   },
 } satisfies ChartConfig
+
 // Generic TableCellViewer component
 export function TableCellViewer<TData extends Record<string, any>>({ 
   item, 
@@ -1479,7 +1434,7 @@ export function TableCellViewer<TData extends Record<string, any>>({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="link" className="w-fit px-0 text-left text-foreground">
+        <Button variant="link" className="w-fit px-0 text-left text-foreground text-xs h-auto">
           {title}
         </Button>
       </SheetTrigger>
