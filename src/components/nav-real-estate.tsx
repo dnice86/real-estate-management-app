@@ -22,33 +22,40 @@ function NavRealEstateContent() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTab = searchParams.get('tab') || 'booking-categories'
+  const currentTenant = searchParams.get('tenant') // Get the current tenant ID
 
   const tableItems = [
     {
       title: "Booking Categories",
-      url: "/protected/real-estate-tables?tab=booking-categories",
-      icon: IconCategory,
       tabKey: "booking-categories",
+      icon: IconCategory,
     },
     {
       title: "Bank Transactions", 
-      url: "/protected/real-estate-tables?tab=bank-transactions",
-      icon: IconCreditCard,
       tabKey: "bank-transactions",
+      icon: IconCreditCard,
     },
     {
       title: "Tenants",
-      url: "/protected/real-estate-tables?tab=tenants", 
-      icon: IconUsers,
       tabKey: "tenants",
+      icon: IconUsers,
     },
     {
       title: "Business Partners",
-      url: "/protected/real-estate-tables?tab=business-partners", 
-      icon: IconBuilding,
       tabKey: "business-partners",
+      icon: IconBuilding,
     },
   ]
+
+  // Helper function to build URL with preserved tenant parameter
+  const buildUrl = (tabKey: string) => {
+    const params = new URLSearchParams()
+    params.set('tab', tabKey)
+    if (currentTenant) {
+      params.set('tenant', currentTenant)
+    }
+    return `/protected/real-estate-tables?${params.toString()}`
+  }
 
   return (
     <SidebarGroup>
@@ -63,7 +70,7 @@ function NavRealEstateContent() {
               }
               tooltip={item.title}
             >
-              <a href={item.url}>
+              <a href={buildUrl(item.tabKey)}>
                 <item.icon />
                 <span>{item.title}</span>
               </a>

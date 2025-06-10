@@ -1,8 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { ChevronsUpDown, Building, Building2 } from "lucide-react"
+import { ChevronsUpDown, Building, Building2, Loader2 } from "lucide-react"
 import { useCompany } from "@/components/company-context"
+import { useSearchParams, usePathname } from 'next/navigation'
 
 import {
   DropdownMenu,
@@ -22,6 +23,33 @@ import {
 export function CompanySwitcher() {
   const { isMobile } = useSidebar()
   const { currentCompany, companies, switchCompany, loading } = useCompany()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const [switching, setSwitching] = React.useState(false)
+
+  const handleCompanySwitch = async (company: any) => {
+    if (switching || company.id === currentCompany?.id) return
+    
+    setSwitching(true)
+    
+    try {
+      // Update the company context
+      switchCompany(company)
+      
+      // Build new URL with updated tenant parameter
+      const current = new URLSearchParams(Array.from(searchParams.entries()))
+      current.set('tenant', company.id)
+      
+      const search = current.toString()
+      const newUrl = `${pathname}?${search}`
+      
+      // Use window.location.href for a full page reload to ensure server component re-renders
+      window.location.href = newUrl
+    } catch (error) {
+      console.error('Error switching company:', error)
+      setSwitching(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -62,19 +90,24 @@ export function CompanySwitcher() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
+              disabled={switching}
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                {currentCompany.plan_type === 'enterprise' ? (
+                {switching ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : currentCompany.plan_type === 'enterprise' ? (
                   <Building2 className="size-4" />
                 ) : (
                   <Building className="size-4" />
                 )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{currentCompany.name}</span>
+                <span className="truncate font-medium">
+                  {switching ? 'Switching...' : currentCompany.name}
+                </span>
                 <span className="truncate text-xs capitalize">
-                  {currentCompany.plan_type} • {currentCompany.role}
+                  {switching ? 'Please wait' : `${currentCompany.plan_type} • ${currentCompany.role}`}
                 </span>
               </div>
               <ChevronsUpDown className="ml-auto" />
@@ -92,7 +125,8 @@ export function CompanySwitcher() {
             {companies.map((company, index) => (
               <DropdownMenuItem
                 key={company.id}
-                onClick={() => switchCompany(company)}
+                onClick={() => handleCompanySwitch(company)}
+                disabled={switching || company.id === currentCompany?.id}
                 className="gap-2 p-2"
               >
                 <div className="flex size-6 items-center justify-center rounded-md border">
@@ -108,7 +142,12 @@ export function CompanySwitcher() {
                     {company.plan_type} • {company.role}
                   </span>
                 </div>
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                {company.id === currentCompany?.id && (
+                  <div className="ml-auto text-primary">✓</div>
+                )}
+                {company.id !== currentCompany?.id && (
+                  <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                )}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

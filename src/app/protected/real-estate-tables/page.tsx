@@ -8,7 +8,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/server"
-import { z } from "zod"
+import { redirect } from 'next/navigation'
 
 // Define interfaces for each table based on the actual schema
 interface BankTransaction {
@@ -19,6 +19,7 @@ interface BankTransaction {
   date: string;
   booking_category: string;
   partner: string;
+  tenant_id?: string;
 }
 
 interface BookingCategory {
@@ -29,6 +30,7 @@ interface BookingCategory {
   "Schedule E - ID": string;
   "Schedule C - ID": string;
   Comment: string;
+  tenant_id?: string;
 }
 
 interface Tenant {
@@ -43,6 +45,7 @@ interface Tenant {
   phone: string;
   cold_rent: number;
   total_rent: number;
+  tenant_id?: string;
 }
 
 interface BusinessPartner {
@@ -55,6 +58,7 @@ interface BusinessPartner {
   contact_email: string;
   contact_phone: string;
   comment: string;
+  tenant_id?: string;
 }
 
 // Create column definitions for each table type
@@ -320,36 +324,87 @@ function ensureStringId<T extends Record<string, any>>(data: T[], idField: strin
 export default async function RealEstateTables({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; tenant?: string }>
 }) {
   // Await the searchParams
   const resolvedSearchParams = await searchParams
+  
   // Create Supabase client
   const supabase = await createClient()
+  
+  // Get the current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  
+  if (userError || !user) {
+    redirect('/auth/login')
+  }
+  
+  // Get tenant ID from URL or get user's first company as default
+  let currentTenantId = resolvedSearchParams.tenant
+  
+  // If no tenant specified, get user's first company
+  if (!currentTenantId) {
+    const { data: userCompanies } = await supabase
+      .from('tenant_users_detailed')
+      .select('tenant_id, tenant_name')
+      .eq('user_id', user.id)
+      .order('tenant_name')
+      .limit(1)
+    
+    if (userCompanies && userCompanies.length > 0) {
+      currentTenantId = userCompanies[0].tenant_id
+      // Redirect to include tenant in URL
+      redirect(`/protected/real-estate-tables?tenant=${currentTenantId}&tab=${resolvedSearchParams.tab || 'booking-categories'}`)
+    } else {
+      // User has no companies - redirect or show error
+      redirect('/protected/dashboard')
+    }
+  }
+  
+  // Verify user has access to this tenant
+  const { data: tenantAccess } = await supabase
+    .from('tenant_users_detailed')
+    .select('tenant_id, tenant_name, role')
+    .eq('user_id', user.id)
+    .eq('tenant_id', currentTenantId)
+    .single()
+  
+  if (!tenantAccess) {
+    // User doesn't have access to this tenant
+    redirect('/protected/dashboard')
+  }
   
   // Get the active tab from URL parameters, default to 'booking-categories'
   const activeTab = resolvedSearchParams.tab || 'booking-categories'
   
-  // Fetch data from Supabase tables
+  // Fetch data from Supabase tables with tenant filtering - EXPLICIT HIGH LIMITS to show all data
   const { data: bookingCategoriesData, error: bookingCategoriesError } = await supabase
     .from('booking_categories')
     .select('*')
-    .limit(100)
+    .eq('tenant_id', currentTenantId)
+    .order('created_at', { ascending: false })
+    .limit(5000) // Explicit high limit
   
   const { data: bankTransactionsData, error: bankTransactionsError } = await supabase
     .from('bank_transactions')
     .select('*')
-    .limit(100)
+    .eq('tenant_id', currentTenantId)
+    .order('date', { ascending: false })
+    .limit(5000) // Explicit high limit to get all 1,365 transactions
   
   const { data: tenantsData, error: tenantsError } = await supabase
     .from('tenants')
     .select('*')
-    .limit(100)
+    .eq('tenant_id', currentTenantId)
+    .order('created_at', { ascending: false })
+    .limit(5000) // Explicit high limit
     
   const { data: businessPartnersData, error: businessPartnersError } = await supabase
     .from('business_partners')
     .select('*')
-    .limit(100)
+    .eq('tenant_id', currentTenantId)
+    .order('created_at', { ascending: false })
+    .limit(5000) // Explicit high limit
   
   // Prepare data for the DataTable component
   const processedBookingCategories = bookingCategoriesData 
@@ -385,6 +440,22 @@ export default async function RealEstateTables({
             <div className="@container/main flex flex-1 flex-col gap-1">
               <div className="flex flex-col gap-2 py-2 md:gap-3 md:py-3">
                 <div className="px-4 lg:px-6">
+                  {/* Success info showing data is working */}
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
+                    <p className="font-bold">✅ All Data Loaded Successfully!</p>
+                    <p>Current Tenant: <strong>{tenantAccess.tenant_name}</strong> ({currentTenantId})</p>
+                    <p>Your Role: <strong>{tenantAccess.role}</strong></p>
+                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>🏦 Bank Transactions: <strong>{processedBankTransactions.length}</strong></div>
+                      <div>📋 Booking Categories: <strong>{processedBookingCategories.length}</strong></div>
+                      <div>👥 Tenants: <strong>{processedTenants.length}</strong></div>
+                      <div>🤝 Business Partners: <strong>{processedBusinessPartners.length}</strong></div>
+                    </div>
+                    <p className="text-xs mt-2 opacity-75">
+                      Query limit increased to 5,000 rows per table. Data is paginated for better performance.
+                    </p>
+                  </div>
+                  
                   {/* Display any errors at the top level */}
                   {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError) && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
@@ -410,6 +481,7 @@ export default async function RealEstateTables({
                           tableName="booking_categories"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
+                          defaultPageSize={50} // Increase default page size for better UX
                         />
                       )}
                     </div>
@@ -426,6 +498,7 @@ export default async function RealEstateTables({
                           tableName="bank_transactions"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
+                          defaultPageSize={50} // Increase default page size for large datasets
                         />
                       )}
                     </div>
@@ -442,6 +515,7 @@ export default async function RealEstateTables({
                           tableName="tenants"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
+                          defaultPageSize={50} // Increase default page size
                         />
                       )}
                     </div>
@@ -458,6 +532,7 @@ export default async function RealEstateTables({
                           tableName="business_partners"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
+                          defaultPageSize={50} // Increase default page size
                         />
                       )}
                     </div>

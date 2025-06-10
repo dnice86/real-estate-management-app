@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
+import { useSearchParams } from 'next/navigation'
 
 interface Company {
   id: string
@@ -25,6 +26,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     async function loadUserCompanies() {
@@ -54,16 +56,34 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
         setCompanies(formattedCompanies)
         
-        // Try to restore previously selected company from localStorage
-        const savedCompanyId = localStorage.getItem('selectedCompanyId')
-        const savedCompany = formattedCompanies.find(c => c.id === savedCompanyId)
+        // Priority order for selecting current company:
+        // 1. URL tenant parameter
+        // 2. Saved company from localStorage
+        // 3. First available company
         
-        // Set saved company or first available company as current
-        if (savedCompany) {
-          setCurrentCompany(savedCompany)
-        } else if (formattedCompanies.length > 0) {
-          setCurrentCompany(formattedCompanies[0])
-          localStorage.setItem('selectedCompanyId', formattedCompanies[0].id)
+        const urlTenantId = searchParams.get('tenant')
+        const savedCompanyId = localStorage.getItem('selectedCompanyId')
+        
+        let selectedCompany: Company | null = null
+        
+        if (urlTenantId) {
+          // Try to find company matching URL tenant parameter
+          selectedCompany = formattedCompanies.find(c => c.id === urlTenantId) || null
+        }
+        
+        if (!selectedCompany && savedCompanyId) {
+          // Fall back to saved company from localStorage
+          selectedCompany = formattedCompanies.find(c => c.id === savedCompanyId) || null
+        }
+        
+        if (!selectedCompany && formattedCompanies.length > 0) {
+          // Fall back to first available company
+          selectedCompany = formattedCompanies[0]
+        }
+        
+        if (selectedCompany) {
+          setCurrentCompany(selectedCompany)
+          localStorage.setItem('selectedCompanyId', selectedCompany.id)
         }
       } catch (error) {
         console.error('Error in loadUserCompanies:', error)
@@ -73,7 +93,19 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadUserCompanies()
-  }, [supabase])
+  }, [supabase, searchParams])
+
+  // Update current company when URL tenant parameter changes
+  useEffect(() => {
+    const urlTenantId = searchParams.get('tenant')
+    if (urlTenantId && companies.length > 0) {
+      const urlCompany = companies.find(c => c.id === urlTenantId)
+      if (urlCompany && (!currentCompany || currentCompany.id !== urlTenantId)) {
+        setCurrentCompany(urlCompany)
+        localStorage.setItem('selectedCompanyId', urlCompany.id)
+      }
+    }
+  }, [searchParams, companies, currentCompany])
 
   const switchCompany = (company: Company) => {
     setCurrentCompany(company)
