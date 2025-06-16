@@ -5,6 +5,7 @@ import {
   IconCreditCard,
   IconUsers,
   IconBuilding,
+  IconCalendarTime,
   type Icon,
 } from "@tabler/icons-react"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -44,6 +45,11 @@ function NavRealEstateContent() {
       title: "Business Partners",
       tabKey: "business-partners",
       icon: IconBuilding,
+    },
+    {
+      title: "Tenant Rent Milestones",
+      tabKey: "tenant-rent-milestones",
+      icon: IconCalendarTime,
     },
   ]
 

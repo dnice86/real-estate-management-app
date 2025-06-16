@@ -670,7 +670,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
 // Generic draggable row component
 function DraggableRow<TData extends { id: string | number }>({ row }: { row: Row<TData> }) {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
-    id: row.original.id,
+    id: row.id, // Use the row's ID from react-table (already includes index)
   })
 
   return (
@@ -826,7 +826,7 @@ export function DataTable<TData extends { id: string | number }>({
   )
 
   const dataIds = React.useMemo<UniqueIdentifier[]>(
-    () => data?.map((item) => item.id) || [],
+    () => data?.map((item, index) => `${item.id}-${index}`) || [],
     [data]
   )
 
@@ -962,7 +962,7 @@ function DropdownCell({
     cellConfig?: CellConfig
   }) => {
     if (!cellConfig) {
-      return <span className="text-xs">{value}</span>;
+      return <span className="text-xs">{String(value)}</span>;
     }
 
     const { type, options = {}, editable, onSave } = cellConfig;
@@ -981,19 +981,19 @@ function DropdownCell({
     
     switch (type) {
       case 'text':
-        return <span className="text-xs">{value}</span>;
+        return <span className="text-xs">{String(value)}</span>;
       
       case 'badge':
         return (
           <Badge variant="outline" className="text-muted-foreground px-1 py-0 text-xs">
-            {value}
+            {String(value)}
           </Badge>
         );
       
       case 'currency':
         return <span className="text-xs">{typeof value === 'number' 
           ? new Intl.NumberFormat('en-US', { style: 'currency', currency: options.currency || 'USD' }).format(value)
-          : value}</span>;
+          : String(value)}</span>;
       
       case 'date':
         return <span className="text-xs">{value ? new Date(value).toLocaleDateString() : ''}</span>;
@@ -1007,7 +1007,7 @@ function DropdownCell({
         const titleField = options.titleField || 'name';
         return (
           <Button variant="link" className="w-fit px-0 text-left text-foreground text-xs h-auto">
-            {row.original[titleField] || value}
+            {String(row.original[titleField] || value)}
           </Button>
         );
       
@@ -1033,7 +1033,7 @@ function DropdownCell({
         );
       
       default:
-        return <span className="text-xs">{value}</span>;
+        return <span className="text-xs">{String(value)}</span>;
     }
   }, []);
 
@@ -1092,7 +1092,7 @@ function DropdownCell({
       // Default cell renderer
       columnDef.cell = ({ row, column }) => {
         const value = row.getValue(column.id);
-        return <span className="text-xs">{value}</span>;
+        return <span className="text-xs">{String(value)}</span>;
       };
     }
 
@@ -1108,7 +1108,7 @@ function DropdownCell({
       finalColumns.push({
         id: "drag",
         header: () => null,
-        cell: ({ row }) => <DragHandle id={row.original.id} />,
+        cell: ({ row }) => <DragHandle id={row.id} />,
         enableSorting: false,
         enableHiding: false,
         enableColumnFilter: false,
@@ -1176,7 +1176,7 @@ function DropdownCell({
     columnResizeMode,
     onColumnSizingChange: setColumnSizing,
     globalFilterFn: globalFilterFn,
-    getRowId: (row) => row.id.toString(),
+    getRowId: (row, index) => `${row.id}-${index}`, // Ensure unique keys by combining ID with index
     enableRowSelection: true,
     enableColumnFilters: true,
     onRowSelectionChange: setRowSelection,
@@ -1197,9 +1197,14 @@ function DropdownCell({
     const { active, over } = event
     if (active && over && active.id !== over.id) {
       setData((data) => {
-        const oldIndex = dataIds.indexOf(active.id)
-        const newIndex = dataIds.indexOf(over.id)
-        return arrayMove(data, oldIndex, newIndex)
+        // Extract original indices from the compound IDs
+        const activeIndex = dataIds.indexOf(active.id)
+        const overIndex = dataIds.indexOf(over.id)
+        
+        if (activeIndex !== -1 && overIndex !== -1) {
+          return arrayMove(data, activeIndex, overIndex)
+        }
+        return data
       })
     }
   }

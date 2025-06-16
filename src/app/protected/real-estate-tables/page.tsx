@@ -8,6 +8,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/server"
+import { initializeServerTenantSession } from "@/lib/server-tenant"
 import { redirect } from 'next/navigation'
 
 // Define interfaces for each table based on the actual schema
@@ -19,7 +20,6 @@ interface BankTransaction {
   date: string;
   booking_category: string;
   partner: string;
-  tenant_id?: string;
 }
 
 interface BookingCategory {
@@ -30,7 +30,6 @@ interface BookingCategory {
   "Schedule E - ID": string;
   "Schedule C - ID": string;
   Comment: string;
-  tenant_id?: string;
 }
 
 interface Tenant {
@@ -45,7 +44,6 @@ interface Tenant {
   phone: string;
   cold_rent: number;
   total_rent: number;
-  tenant_id?: string;
 }
 
 interface BusinessPartner {
@@ -58,7 +56,25 @@ interface BusinessPartner {
   contact_email: string;
   contact_phone: string;
   comment: string;
-  tenant_id?: string;
+}
+
+interface TenantRentMilestone {
+  id: number;
+  tenant_name: string | null;
+  cold_rent: string;
+  heizkosten: string;
+  nebenkosten: string;
+  other_costs: string;
+  total_monthly_cost: string;
+  tenant_id: string; // Keep this as it's used for database operations
+  monthly_rent: string;
+  rent_type: string;
+  effective_from: string;
+  effective_until: string | null;
+  increase_reason: string | null;
+  legal_notice_date: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 // Create column definitions for each table type
@@ -313,6 +329,129 @@ const createBusinessPartnersColumns = (): ColumnConfig<BusinessPartner>[] => [
   },
 ];
 
+const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<TenantRentMilestone>[] => [
+  {
+    accessorKey: "tenant_name",
+    header: "Tenant Name",
+    cellConfig: {
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: [
+          { label: 'Select Tenant', value: '' },
+          ...tenants.map(tenant => ({
+            label: tenant.full_name,
+            value: tenant.full_name
+          }))
+        ]
+      }
+    }
+  },
+  {
+    accessorKey: "rent_type",
+    header: "Rent Type",
+    cellConfig: {
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: [
+          { label: 'Base Rent', value: 'Base Rent' },
+          { label: 'Increased Rent', value: 'Increased Rent' },
+          { label: 'Reduced Rent', value: 'Reduced Rent' },
+          { label: 'Market Adjustment', value: 'Market Adjustment' }
+        ]
+      }
+    }
+  },
+  {
+    accessorKey: "monthly_rent",
+    header: "Monthly Rent",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "cold_rent",
+    header: "Cold Rent",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "heizkosten",
+    header: "Heating Costs",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "nebenkosten",
+    header: "Utility Costs",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "other_costs",
+    header: "Other Costs",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "total_monthly_cost",
+    header: "Total Monthly Cost",
+    cellConfig: {
+      type: 'text'
+    }
+  },
+  {
+    accessorKey: "effective_from",
+    header: "Effective From",
+    cellConfig: {
+      type: 'date',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "effective_until",
+    header: "Effective Until",
+    cellConfig: {
+      type: 'date',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "increase_reason",
+    header: "Increase Reason",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "legal_notice_date",
+    header: "Legal Notice Date",
+    cellConfig: {
+      type: 'date',
+      editable: true
+    }
+  },
+  {
+    accessorKey: "notes",
+    header: "Notes",
+    cellConfig: {
+      type: 'text',
+      editable: true
+    }
+  }
+];
+
 // Helper function to ensure each item has a string ID
 function ensureStringId<T extends Record<string, any>>(data: T[], idField: string = 'id'): (T & { id: string })[] {
   return data.map((item, index) => ({
@@ -321,10 +460,57 @@ function ensureStringId<T extends Record<string, any>>(data: T[], idField: strin
   }));
 }
 
+// Function to fetch all data - simplified with RLS (no need for tenant filtering)
+async function fetchAllData<T>(
+  supabase: any,
+  tableName: string,
+  orderBy: string = 'created_at',
+  ascending: boolean = false
+): Promise<{ data: T[] | null; error: any }> {
+  let allData: T[] = [];
+  let hasMore = true;
+  let rangeStart = 0;
+  const batchSize = 1000; // Supabase limit
+  let error = null;
+
+  while (hasMore) {
+    const rangeEnd = rangeStart + batchSize - 1;
+    
+    // RLS automatically filters by tenant - no need for explicit tenant_id filter!
+    const query = supabase
+      .from(tableName)
+      .select('*')
+      .order(orderBy, { ascending })
+      .range(rangeStart, rangeEnd);
+
+    const { data: batchData, error: batchError } = await query;
+
+    if (batchError) {
+      error = batchError;
+      break;
+    }
+
+    if (batchData && batchData.length > 0) {
+      allData = [...allData, ...batchData];
+      
+      // If we got less than the batch size, we've reached the end
+      if (batchData.length < batchSize) {
+        hasMore = false;
+      } else {
+        rangeStart += batchSize;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return { data: allData.length > 0 ? allData : null, error };
+}
+
 export default async function RealEstateTables({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; tenant?: string }>
+  searchParams: Promise<{ tab?: string }>
 }) {
   // Await the searchParams
   const resolvedSearchParams = await searchParams
@@ -332,79 +518,53 @@ export default async function RealEstateTables({
   // Create Supabase client
   const supabase = await createClient()
   
-  // Get the current user
+  // Get the current user (authentication check)
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   
   if (userError || !user) {
     redirect('/auth/login')
   }
   
-  // Get tenant ID from URL or get user's first company as default
-  let currentTenantId = resolvedSearchParams.tenant
-  
-  // If no tenant specified, get user's first company
-  if (!currentTenantId) {
-    const { data: userCompanies } = await supabase
-      .from('tenant_users_detailed')
-      .select('tenant_id, tenant_name')
-      .eq('user_id', user.id)
-      .order('tenant_name')
-      .limit(1)
-    
-    if (userCompanies && userCompanies.length > 0) {
-      currentTenantId = userCompanies[0].tenant_id
-      // Redirect to include tenant in URL
-      redirect(`/protected/real-estate-tables?tenant=${currentTenantId}&tab=${resolvedSearchParams.tab || 'booking-categories'}`)
-    } else {
-      // User has no companies - redirect or show error
-      redirect('/protected/dashboard')
-    }
-  }
-  
-  // Verify user has access to this tenant
-  const { data: tenantAccess } = await supabase
-    .from('tenant_users_detailed')
-    .select('tenant_id, tenant_name, role')
-    .eq('user_id', user.id)
-    .eq('tenant_id', currentTenantId)
-    .single()
-  
-  if (!tenantAccess) {
-    // User doesn't have access to this tenant
-    redirect('/protected/dashboard')
-  }
-  
   // Get the active tab from URL parameters, default to 'booking-categories'
   const activeTab = resolvedSearchParams.tab || 'booking-categories'
   
-  // Fetch data from Supabase tables with tenant filtering - EXPLICIT HIGH LIMITS to show all data
-  const { data: bookingCategoriesData, error: bookingCategoriesError } = await supabase
-    .from('booking_categories')
-    .select('*')
-    .eq('tenant_id', currentTenantId)
-    .order('created_at', { ascending: false })
-    .limit(5000) // Explicit high limit
+  // Initialize tenant session for RLS (reads from cookies)
+  await initializeServerTenantSession()
   
-  const { data: bankTransactionsData, error: bankTransactionsError } = await supabase
-    .from('bank_transactions')
-    .select('*')
-    .eq('tenant_id', currentTenantId)
-    .order('date', { ascending: false })
-    .limit(5000) // Explicit high limit to get all 1,365 transactions
+  // Fetch data from Supabase tables - RLS automatically filters by current tenant!
+  const { data: bookingCategoriesData, error: bookingCategoriesError } = await fetchAllData<BookingCategory>(
+    supabase,
+    'booking_categories',
+    'created_at',
+    false
+  );
   
-  const { data: tenantsData, error: tenantsError } = await supabase
-    .from('tenants')
-    .select('*')
-    .eq('tenant_id', currentTenantId)
-    .order('created_at', { ascending: false })
-    .limit(5000) // Explicit high limit
+  const { data: bankTransactionsData, error: bankTransactionsError } = await fetchAllData<BankTransaction>(
+    supabase,
+    'bank_transactions',
+    'date',
+    false
+  );
+  
+  const { data: tenantsData, error: tenantsError } = await fetchAllData<Tenant>(
+    supabase,
+    'tenants',
+    'created_at',
+    false
+  );
     
-  const { data: businessPartnersData, error: businessPartnersError } = await supabase
-    .from('business_partners')
+  const { data: businessPartnersData, error: businessPartnersError } = await fetchAllData<BusinessPartner>(
+    supabase,
+    'business_partners',
+    'created_at',
+    false
+  );
+
+  // RLS also applies to simple queries
+  const { data: tenantRentMilestonesData, error: tenantRentMilestonesError } = await supabase
+    .from('tenant_rent_milestones')
     .select('*')
-    .eq('tenant_id', currentTenantId)
-    .order('created_at', { ascending: false })
-    .limit(5000) // Explicit high limit
+    .order('id', { ascending: false });
   
   // Prepare data for the DataTable component
   const processedBookingCategories = bookingCategoriesData 
@@ -421,6 +581,10 @@ export default async function RealEstateTables({
     
   const processedBusinessPartners = businessPartnersData 
     ? ensureStringId(businessPartnersData) 
+    : [];
+
+  const processedTenantRentMilestones = tenantRentMilestonesData 
+    ? ensureStringId(tenantRentMilestonesData) 
     : [];
 
   return (
@@ -440,24 +604,10 @@ export default async function RealEstateTables({
             <div className="@container/main flex flex-1 flex-col gap-1">
               <div className="flex flex-col gap-2 py-2 md:gap-3 md:py-3">
                 <div className="px-4 lg:px-6">
-                  {/* Success info showing data is working */}
-                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
-                    <p className="font-bold">✅ All Data Loaded Successfully!</p>
-                    <p>Current Tenant: <strong>{tenantAccess.tenant_name}</strong> ({currentTenantId})</p>
-                    <p>Your Role: <strong>{tenantAccess.role}</strong></p>
-                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>🏦 Bank Transactions: <strong>{processedBankTransactions.length}</strong></div>
-                      <div>📋 Booking Categories: <strong>{processedBookingCategories.length}</strong></div>
-                      <div>👥 Tenants: <strong>{processedTenants.length}</strong></div>
-                      <div>🤝 Business Partners: <strong>{processedBusinessPartners.length}</strong></div>
-                    </div>
-                    <p className="text-xs mt-2 opacity-75">
-                      Query limit increased to 5,000 rows per table. Data is paginated for better performance.
-                    </p>
-                  </div>
+
                   
                   {/* Display any errors at the top level */}
-                  {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError) && (
+                  {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError || tenantRentMilestonesError) && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
                       <p className="font-bold">There were errors fetching data:</p>
                       <ul className="list-disc pl-5">
@@ -465,6 +615,7 @@ export default async function RealEstateTables({
                         {bankTransactionsError && <li>Bank Transactions: {bankTransactionsError.message}</li>}
                         {tenantsError && <li>Tenants: {tenantsError.message}</li>}
                         {businessPartnersError && <li>Business Partners: {businessPartnersError.message}</li>}
+                        {tenantRentMilestonesError && <li>Tenant Rent Milestones: {tenantRentMilestonesError.message}</li>}
                       </ul>
                     </div>
                   )}
@@ -481,7 +632,7 @@ export default async function RealEstateTables({
                           tableName="booking_categories"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
-                          defaultPageSize={50} // Increase default page size for better UX
+                          defaultPageSize={50}
                         />
                       )}
                     </div>
@@ -498,7 +649,7 @@ export default async function RealEstateTables({
                           tableName="bank_transactions"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
-                          defaultPageSize={50} // Increase default page size for large datasets
+                          defaultPageSize={50}
                         />
                       )}
                     </div>
@@ -515,7 +666,7 @@ export default async function RealEstateTables({
                           tableName="tenants"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
-                          defaultPageSize={50} // Increase default page size
+                          defaultPageSize={50}
                         />
                       )}
                     </div>
@@ -532,7 +683,24 @@ export default async function RealEstateTables({
                           tableName="business_partners"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
-                          defaultPageSize={50} // Increase default page size
+                          defaultPageSize={50}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === 'tenant-rent-milestones' && (
+                    <div>
+                      {tenantRentMilestonesError ? (
+                        <div className="text-red-500">Error loading tenant rent milestones: {tenantRentMilestonesError.message}</div>
+                      ) : (
+                        <EditableDataTable 
+                          data={processedTenantRentMilestones} 
+                          columns={createTenantRentMilestonesColumns(processedTenants)}
+                          tableName="tenant_rent_milestones"
+                          bookingCategories={processedBookingCategories}
+                          partners={[...processedTenants, ...processedBusinessPartners]}
+                          defaultPageSize={50}
                         />
                       )}
                     </div>

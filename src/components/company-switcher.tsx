@@ -3,7 +3,6 @@
 import * as React from "react"
 import { ChevronsUpDown, Building, Building2, Loader2 } from "lucide-react"
 import { useCompany } from "@/components/company-context"
-import { useSearchParams, usePathname } from 'next/navigation'
 
 import {
   DropdownMenu,
@@ -23,8 +22,6 @@ import {
 export function CompanySwitcher() {
   const { isMobile } = useSidebar()
   const { currentCompany, companies, switchCompany, loading } = useCompany()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
   const [switching, setSwitching] = React.useState(false)
 
   const handleCompanySwitch = async (company: any) => {
@@ -33,18 +30,12 @@ export function CompanySwitcher() {
     setSwitching(true)
     
     try {
-      // Update the company context
-      switchCompany(company)
+      // Update the company context (now async with RLS)
+      await switchCompany(company)
       
-      // Build new URL with updated tenant parameter
-      const current = new URLSearchParams(Array.from(searchParams.entries()))
-      current.set('tenant', company.id)
-      
-      const search = current.toString()
-      const newUrl = `${pathname}?${search}`
-      
-      // Use window.location.href for a full page reload to ensure server component re-renders
-      window.location.href = newUrl
+      // No need for URL parameters anymore - RLS handles tenant filtering!
+      // Just refresh the page to update server-side data
+      window.location.reload()
     } catch (error) {
       console.error('Error switching company:', error)
       setSwitching(false)

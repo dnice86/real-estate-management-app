@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/server'
+import { initializeServerTenantSession } from '@/lib/server-tenant'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -7,7 +8,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const year = searchParams.get('year') || '2025'
     
+    // Initialize tenant session for RLS
+    await initializeServerTenantSession()
+    
     // Fetch all bank transactions with "Miete" category for the specified year
+    // Note: RLS automatically filters by current tenant, no need for explicit tenant_id filter
     const { data: rentTransactions, error } = await supabase
       .from('bank_transactions')
       .select('*')
@@ -28,6 +33,7 @@ export async function GET(request: Request) {
     })
 
     // Also fetch property data if you have a properties table
+    // Note: RLS automatically filters by current tenant
     const { data: properties, error: propertiesError } = await supabase
       .from('properties')
       .select('*')

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
-import { useSearchParams } from 'next/navigation'
+import { setCurrentTenant } from '@/lib/tenant'
 
 interface Company {
   id: string
@@ -15,7 +15,7 @@ interface Company {
 interface CompanyContextType {
   currentCompany: Company | null
   companies: Company[]
-  switchCompany: (company: Company) => void
+  switchCompany: (company: Company) => Promise<void>
   loading: boolean
 }
 
@@ -26,7 +26,6 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     async function loadUserCompanies() {
@@ -56,23 +55,16 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
         setCompanies(formattedCompanies)
         
-        // Priority order for selecting current company:
-        // 1. URL tenant parameter
-        // 2. Saved company from localStorage
-        // 3. First available company
+        // Simple priority order for selecting current company:
+        // 1. Saved company from localStorage 
+        // 2. First available company
         
-        const urlTenantId = searchParams.get('tenant')
         const savedCompanyId = localStorage.getItem('selectedCompanyId')
         
         let selectedCompany: Company | null = null
         
-        if (urlTenantId) {
-          // Try to find company matching URL tenant parameter
-          selectedCompany = formattedCompanies.find(c => c.id === urlTenantId) || null
-        }
-        
-        if (!selectedCompany && savedCompanyId) {
-          // Fall back to saved company from localStorage
+        if (savedCompanyId) {
+          // Try to find saved company
           selectedCompany = formattedCompanies.find(c => c.id === savedCompanyId) || null
         }
         
@@ -84,6 +76,15 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         if (selectedCompany) {
           setCurrentCompany(selectedCompany)
           localStorage.setItem('selectedCompanyId', selectedCompany.id)
+          
+          // Set the tenant in the database session for RLS
+          try {
+            await setCurrentTenant(selectedCompany.id)
+            // Also set cookie for server-side access
+            document.cookie = `selectedTenantId=${selectedCompany.id}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
+          } catch (error) {
+            console.error('Failed to initialize tenant session:', error)
+          }
         }
       } catch (error) {
         console.error('Error in loadUserCompanies:', error)
@@ -93,23 +94,23 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
 
     loadUserCompanies()
-  }, [supabase, searchParams])
+  }, [supabase])
 
-  // Update current company when URL tenant parameter changes
-  useEffect(() => {
-    const urlTenantId = searchParams.get('tenant')
-    if (urlTenantId && companies.length > 0) {
-      const urlCompany = companies.find(c => c.id === urlTenantId)
-      if (urlCompany && (!currentCompany || currentCompany.id !== urlTenantId)) {
-        setCurrentCompany(urlCompany)
-        localStorage.setItem('selectedCompanyId', urlCompany.id)
-      }
+  const switchCompany = async (company: Company) => {
+    try {
+      // Set the current tenant in the database session for RLS
+      await setCurrentTenant(company.id)
+      
+      // Update local state
+      setCurrentCompany(company)
+      localStorage.setItem('selectedCompanyId', company.id)
+      
+      // Also set cookie for server-side access
+      document.cookie = `selectedTenantId=${company.id}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
+    } catch (error) {
+      console.error('Failed to switch tenant:', error)
+      throw error
     }
-  }, [searchParams, companies, currentCompany])
-
-  const switchCompany = (company: Company) => {
-    setCurrentCompany(company)
-    localStorage.setItem('selectedCompanyId', company.id)
   }
 
   return (
