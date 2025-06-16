@@ -338,7 +338,7 @@ const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<Tena
       editable: true,
       options: {
         items: [
-          { label: 'Select Tenant', value: '' },
+          { label: 'Unassigned', value: 'unassigned' },
           ...tenants.map(tenant => ({
             label: tenant.full_name,
             value: tenant.full_name

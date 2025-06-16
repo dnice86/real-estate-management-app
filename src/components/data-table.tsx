@@ -826,7 +826,7 @@ export function DataTable<TData extends { id: string | number }>({
   )
 
   const dataIds = React.useMemo<UniqueIdentifier[]>(
-    () => data?.map((item, index) => `${item.id}-${index}`) || [],
+    () => data?.map((item, index) => `row-${index}`) || [],
     [data]
   )
 
@@ -929,13 +929,24 @@ function DropdownCell({
     setIsOpen(false);
   };
   
+  // Ensure we have a valid value (not empty string)
+  const safeValue = initialValue === '' || initialValue === null || initialValue === undefined 
+    ? 'unassigned' 
+    : initialValue;
+  
+  // Ensure the options include the 'unassigned' option if it doesn't exist
+  const validOptions = options.filter(option => option.value !== '');
+  if (!validOptions.some(option => option.value === 'unassigned')) {
+    validOptions.unshift({ label: 'Unassigned', value: 'unassigned' });
+  }
+  
   // Find the selected option label
-  const selectedOption = options.find(option => option.value === initialValue);
-  const displayValue = selectedOption ? selectedOption.label : initialValue;
+  const selectedOption = validOptions.find(option => option.value === safeValue);
+  const displayValue = selectedOption ? selectedOption.label : safeValue;
   
   return (
     <Select
-      value={initialValue}
+      value={safeValue}
       onValueChange={handleSelect}
     >
       <SelectTrigger className="h-6 w-full border-transparent bg-transparent hover:bg-muted/50 focus:bg-muted/50 text-foreground text-xs">
@@ -944,7 +955,7 @@ function DropdownCell({
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {options.map((option) => (
+        {validOptions.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}
           </SelectItem>
@@ -1176,7 +1187,7 @@ function DropdownCell({
     columnResizeMode,
     onColumnSizingChange: setColumnSizing,
     globalFilterFn: globalFilterFn,
-    getRowId: (row, index) => `${row.id}-${index}`, // Ensure unique keys by combining ID with index
+    getRowId: (row, index) => `row-${index}`, // Use index-based keys to ensure uniqueness
     enableRowSelection: true,
     enableColumnFilters: true,
     onRowSelectionChange: setRowSelection,
