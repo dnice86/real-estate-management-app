@@ -11,7 +11,7 @@ import { createClient } from "@/lib/server"
 import { initializeServerTenantSession } from "@/lib/server-tenant"
 import { redirect } from 'next/navigation'
 
-// Define interfaces for each table based on the actual schema
+// Define interfaces for each table based on the enhanced schema
 interface BankTransaction {
   id: string;
   amount: number;
@@ -20,6 +20,9 @@ interface BankTransaction {
   date: string;
   booking_category: string;
   partner: string;
+  property: string;
+  tenant_ref: string | null;
+  business_partner_ref: string | null;
 }
 
 interface BookingCategory {
@@ -58,16 +61,22 @@ interface BusinessPartner {
   comment: string;
 }
 
+interface Property {
+  name: string;
+  category: string;
+  street: string;
+  city: string;
+}
+
 interface TenantRentMilestone {
   id: number;
   tenant_name: string | null;
   cold_rent: string;
-  heizkosten: string;
-  nebenkosten: string;
-  other_costs: string;
+  heating_costs: string;
+  additional_costs: string;
+  parking_costs: string;
   total_monthly_cost: string;
-  tenant_id: string; // Keep this as it's used for database operations
-  monthly_rent: string;
+  tenant_id: string;
   rent_type: string;
   effective_from: string;
   effective_until: string | null;
@@ -77,21 +86,24 @@ interface TenantRentMilestone {
   created_at: string;
 }
 
-// Create column definitions for each table type
+// Enhanced Bank Transaction Columns with proper foreign key handling
 const createBankTransactionColumns = (
   bookingCategories: BookingCategory[], 
-  tenants: Tenant[],
-  businessPartners: BusinessPartner[]
+  properties: Property[]
 ): ColumnConfig<BankTransaction>[] => [
   {
     accessorKey: "description",
     header: "Description",
     cellConfig: {
-      type: 'link',
+      type: 'truncated-text',
       options: {
+        maxLength: 50,
+        className: 'hover:bg-muted/50 rounded px-1 py-0.5',
+        clickable: true,
         titleField: 'description'
       }
-    }
+    },
+    size: 200
   },
   {
     accessorKey: "amount",
@@ -99,7 +111,7 @@ const createBankTransactionColumns = (
     cellConfig: {
       type: 'currency',
       options: {
-        currency: 'USD'
+        currency: 'EUR'
       }
     }
   },
@@ -107,15 +119,22 @@ const createBankTransactionColumns = (
     accessorKey: "payer",
     header: "Payer",
     cellConfig: {
-      type: 'text',
+      type: 'truncated-text',
+      options: {
+        maxLength: 30,
+        className: 'hover:bg-muted/50 rounded px-1 py-0.5',
+        clickable: false
+      },
       editable: true
-    }
+    },
+    size: 150
   },
   {
     accessorKey: "date",
     header: "Date",
     cellConfig: {
-      type: 'date'
+      type: 'date',
+      editable: true
     }
   },
   {
@@ -134,26 +153,39 @@ const createBankTransactionColumns = (
   },
   {
     accessorKey: "partner",
-    header: "Partner",
+    header: "Partner (Current)",
+    cellConfig: {
+      type: 'text'
+    }
+  },
+  {
+    accessorKey: "partner_selection",
+    header: "Partner (Select New)",
     cellConfig: {
       type: 'dropdown',
       editable: true,
       options: {
-        items: [
-          ...tenants.map(tenant => ({
-            label: `${tenant.full_name} (Tenant)`,
-            value: tenant.full_name
-          })),
-          ...businessPartners.map(partner => ({
-            label: `${partner.full_name} (Business)`,
-            value: partner.full_name
-          }))
-        ]
+        items: [] // Will be populated by client component
+      }
+    }
+  },
+  {
+    accessorKey: "property",
+    header: "Property",
+    cellConfig: {
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: properties.map(property => ({
+          label: property.name,
+          value: property.name
+        }))
       }
     }
   },
 ];
 
+// Enhanced Booking Category Columns
 const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
   {
     accessorKey: "Name",
@@ -185,14 +217,16 @@ const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
     accessorKey: "Schedule E - ID",
     header: "Schedule E ID",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
     accessorKey: "Schedule C - ID",
     header: "Schedule C ID",
     cellConfig: {
-      type: 'text'
+      type: 'text',
+      editable: true
     }
   },
   {
@@ -205,6 +239,7 @@ const createBookingCategoryColumns = (): ColumnConfig<BookingCategory>[] => [
   },
 ];
 
+// Enhanced Tenants Columns
 const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
   {
     accessorKey: "full_name",
@@ -220,8 +255,15 @@ const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
     accessorKey: "status",
     header: "Status",
     cellConfig: {
-      type: 'text',
-      editable: true
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: [
+          { label: 'Active', value: 'Active' },
+          { label: 'Inactive', value: 'Inactive' },
+          { label: 'Former', value: 'Former' }
+        ]
+      }
     }
   },
   {
@@ -246,8 +288,9 @@ const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
     cellConfig: {
       type: 'currency',
       options: {
-        currency: 'USD'
-      }
+        currency: 'EUR'
+      },
+      editable: true
     }
   },
   {
@@ -256,7 +299,7 @@ const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
     cellConfig: {
       type: 'currency',
       options: {
-        currency: 'USD'
+        currency: 'EUR'
       }
     }
   },
@@ -264,18 +307,21 @@ const createTenantsColumns = (): ColumnConfig<Tenant>[] => [
     accessorKey: "lease_start_date",
     header: "Lease Start",
     cellConfig: {
-      type: 'date'
+      type: 'date',
+      editable: true
     }
   },
   {
     accessorKey: "lease_end_date",
     header: "Lease End",
     cellConfig: {
-      type: 'date'
+      type: 'date',
+      editable: true
     }
   },
 ];
 
+// Enhanced Business Partners Columns
 const createBusinessPartnersColumns = (): ColumnConfig<BusinessPartner>[] => [
   {
     accessorKey: "full_name",
@@ -299,8 +345,14 @@ const createBusinessPartnersColumns = (): ColumnConfig<BusinessPartner>[] => [
     accessorKey: "status",
     header: "Status",
     cellConfig: {
-      type: 'text',
-      editable: true
+      type: 'dropdown',
+      editable: true,
+      options: {
+        items: [
+          { label: 'Active', value: 'Active' },
+          { label: 'Inactive', value: 'Inactive' }
+        ]
+      }
     }
   },
   {
@@ -329,6 +381,7 @@ const createBusinessPartnersColumns = (): ColumnConfig<BusinessPartner>[] => [
   },
 ];
 
+// Enhanced Tenant Rent Milestones Columns
 const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<TenantRentMilestone>[] => [
   {
     accessorKey: "tenant_name",
@@ -338,7 +391,7 @@ const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<Tena
       editable: true,
       options: {
         items: [
-          { label: 'Unassigned', value: 'unassigned' },
+          { label: 'Unassigned', value: null },
           ...tenants.map(tenant => ({
             label: tenant.full_name,
             value: tenant.full_name
@@ -364,42 +417,46 @@ const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<Tena
     }
   },
   {
-    accessorKey: "monthly_rent",
-    header: "Monthly Rent",
-    cellConfig: {
-      type: 'text',
-      editable: true
-    }
-  },
-  {
     accessorKey: "cold_rent",
     header: "Cold Rent",
     cellConfig: {
-      type: 'text',
+      type: 'currency',
+      options: {
+        currency: 'EUR'
+      },
       editable: true
     }
   },
   {
-    accessorKey: "heizkosten",
+    accessorKey: "heating_costs",
     header: "Heating Costs",
     cellConfig: {
-      type: 'text',
+      type: 'currency',
+      options: {
+        currency: 'EUR'
+      },
       editable: true
     }
   },
   {
-    accessorKey: "nebenkosten",
+    accessorKey: "additional_costs",
     header: "Utility Costs",
     cellConfig: {
-      type: 'text',
+      type: 'currency',
+      options: {
+        currency: 'EUR'
+      },
       editable: true
     }
   },
   {
-    accessorKey: "other_costs",
-    header: "Other Costs",
+    accessorKey: "parking_costs",
+    header: "Parking Costs",
     cellConfig: {
-      type: 'text',
+      type: 'currency',
+      options: {
+        currency: 'EUR'
+      },
       editable: true
     }
   },
@@ -407,7 +464,10 @@ const createTenantRentMilestonesColumns = (tenants: Tenant[]): ColumnConfig<Tena
     accessorKey: "total_monthly_cost",
     header: "Total Monthly Cost",
     cellConfig: {
-      type: 'text'
+      type: 'currency',
+      options: {
+        currency: 'EUR'
+      }
     }
   },
   {
@@ -560,6 +620,14 @@ export default async function RealEstateTables({
     false
   );
 
+  // Fetch properties data
+  const { data: propertiesData, error: propertiesError } = await fetchAllData<Property>(
+    supabase,
+    'properties',
+    'created_at',
+    false
+  );
+
   // RLS also applies to simple queries
   const { data: tenantRentMilestonesData, error: tenantRentMilestonesError } = await supabase
     .from('tenant_rent_milestones')
@@ -581,6 +649,10 @@ export default async function RealEstateTables({
     
   const processedBusinessPartners = businessPartnersData 
     ? ensureStringId(businessPartnersData) 
+    : [];
+
+  const processedProperties = propertiesData 
+    ? propertiesData
     : [];
 
   const processedTenantRentMilestones = tenantRentMilestonesData 
@@ -607,7 +679,7 @@ export default async function RealEstateTables({
 
                   
                   {/* Display any errors at the top level */}
-                  {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError || tenantRentMilestonesError) && (
+                  {(bookingCategoriesError || bankTransactionsError || tenantsError || businessPartnersError || propertiesError || tenantRentMilestonesError) && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
                       <p className="font-bold">There were errors fetching data:</p>
                       <ul className="list-disc pl-5">
@@ -615,6 +687,7 @@ export default async function RealEstateTables({
                         {bankTransactionsError && <li>Bank Transactions: {bankTransactionsError.message}</li>}
                         {tenantsError && <li>Tenants: {tenantsError.message}</li>}
                         {businessPartnersError && <li>Business Partners: {businessPartnersError.message}</li>}
+                        {propertiesError && <li>Properties: {propertiesError.message}</li>}
                         {tenantRentMilestonesError && <li>Tenant Rent Milestones: {tenantRentMilestonesError.message}</li>}
                       </ul>
                     </div>
@@ -623,6 +696,7 @@ export default async function RealEstateTables({
                   {/* Conditional rendering based on active tab */}
                   {activeTab === 'booking-categories' && (
                     <div>
+                      <h1 className="text-2xl font-bold mb-4">Booking Categories</h1>
                       {bookingCategoriesError ? (
                         <div className="text-red-500">Error loading booking categories: {bookingCategoriesError.message}</div>
                       ) : (
@@ -640,12 +714,23 @@ export default async function RealEstateTables({
                   
                   {activeTab === 'bank-transactions' && (
                     <div>
+                      <h1 className="text-2xl font-bold mb-4">Bank Transactions</h1>
+                      <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-4">
+                        <p className="font-bold">✅ Enhanced with Foreign Key Constraints</p>
+                        <p className="text-sm">
+                          The "Partner (Current)" column shows the current partner name. 
+                          Use "Partner (Select New)" to update with proper foreign key constraints.
+                        </p>
+                      </div>
                       {bankTransactionsError ? (
                         <div className="text-red-500">Error loading bank transactions: {bankTransactionsError.message}</div>
                       ) : (
                         <EditableDataTable 
                           data={processedBankTransactions} 
-                          columns={createBankTransactionColumns(processedBookingCategories, processedTenants, processedBusinessPartners)}
+                          columns={createBankTransactionColumns(
+                            processedBookingCategories, 
+                            processedProperties
+                          )}
                           tableName="bank_transactions"
                           bookingCategories={processedBookingCategories}
                           partners={[...processedTenants, ...processedBusinessPartners]}
@@ -657,6 +742,7 @@ export default async function RealEstateTables({
                   
                   {activeTab === 'tenants' && (
                     <div>
+                      <h1 className="text-2xl font-bold mb-4">Tenants</h1>
                       {tenantsError ? (
                         <div className="text-red-500">Error loading tenants: {tenantsError.message}</div>
                       ) : (
@@ -674,6 +760,7 @@ export default async function RealEstateTables({
                   
                   {activeTab === 'business-partners' && (
                     <div>
+                      <h1 className="text-2xl font-bold mb-4">Business Partners</h1>
                       {businessPartnersError ? (
                         <div className="text-red-500">Error loading business partners: {businessPartnersError.message}</div>
                       ) : (
@@ -691,6 +778,7 @@ export default async function RealEstateTables({
 
                   {activeTab === 'tenant-rent-milestones' && (
                     <div>
+                      <h1 className="text-2xl font-bold mb-4">Tenant Rent Milestones</h1>
                       {tenantRentMilestonesError ? (
                         <div className="text-red-500">Error loading tenant rent milestones: {tenantRentMilestonesError.message}</div>
                       ) : (

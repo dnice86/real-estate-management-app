@@ -112,6 +112,7 @@ import {
 } from "@/components/ui/table"
 import { TrendingUpIcon } from "lucide-react"
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet"
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip"
 
 // This schema is kept for backward compatibility
 export const schema = z.object({
@@ -762,7 +763,7 @@ function GlobalSearch({ table }: { table: any }) {
 
 // Cell renderer configuration type
 export type CellConfig = {
-  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom' | 'editable' | 'dropdown'
+  type: 'text' | 'badge' | 'currency' | 'date' | 'boolean' | 'link' | 'custom' | 'editable' | 'dropdown' | 'truncated-text'
   options?: Record<string, any>
   editable?: boolean
   onSave?: (rowId: string, field: string, value: any) => void
@@ -965,6 +966,110 @@ function DropdownCell({
   );
 }
 
+// Truncated Text Cell component with tooltip for full content
+function TruncatedTextCell({ 
+  value, 
+  maxLength = 50,
+  className = "",
+  clickable = false,
+  row,
+  column,
+  titleField = 'description',
+  editable = false,
+  onSave
+}: { 
+  value: any, 
+  maxLength?: number,
+  className?: string,
+  clickable?: boolean,
+  row?: any,
+  column?: any,
+  titleField?: string,
+  editable?: boolean,
+  onSave?: (rowId: string, field: string, value: any) => void
+}) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editValue, setEditValue] = React.useState(value);
+  
+  const text = String(value || '');
+  const isTruncated = text.length > maxLength;
+  const truncatedText = isTruncated ? text.slice(0, maxLength) + '...' : text;
+  
+  // Update edit value when the prop value changes
+  React.useEffect(() => {
+    setEditValue(value);
+  }, [value]);
+  
+  const handleEdit = () => {
+    if (editable) {
+      setIsEditing(true);
+    }
+  };
+  
+  const handleSave = () => {
+    setIsEditing(false);
+    if (editValue !== value && onSave && row && column) {
+      onSave(row.original.id.toString(), column.id, editValue);
+    }
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setEditValue(value); // Reset to original value
+    }
+  };
+  
+  // If in editing mode, show input field
+  if (isEditing && editable) {
+    return (
+      <Input
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-5 border-transparent bg-transparent shadow-none focus-visible:border dark:bg-transparent text-xs"
+      />
+    );
+  }
+  
+  const content = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span 
+          className={`text-xs cursor-help ${className} ${clickable ? 'hover:text-primary underline-offset-4 hover:underline' : ''} ${editable ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+          onClick={editable ? handleEdit : undefined}
+        >
+          {truncatedText}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-sm break-words">
+        <p className="text-xs">{text}</p>
+        {editable && <p className="text-xs text-muted-foreground mt-1">Click to edit</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+  
+  if (!isTruncated && !clickable && !editable) {
+    return <span className={`text-xs ${className} ${editable ? 'cursor-pointer hover:bg-muted/50 px-1 py-0.5 rounded' : ''}`} onClick={editable ? handleEdit : undefined}>{text}</span>;
+  }
+  
+  if (clickable && row && !editable) {
+    return (
+      <TableCellViewer 
+        item={row.original} 
+        titleField={titleField}
+        customTrigger={content}
+      />
+    );
+  }
+  
+  return content;
+}
+
 // Cell renderer function based on configuration
   const renderCell = React.useCallback(({ row, column, value, cellConfig }: { 
     row: any, 
@@ -1040,6 +1145,21 @@ function DropdownCell({
             column={column} 
             onSave={onSave}
             options={options.items || []}
+          />
+        );
+      
+      case 'truncated-text':
+        return (
+          <TruncatedTextCell 
+            value={value}
+            maxLength={options.maxLength || 50}
+            className={options.className || ''}
+            clickable={options.clickable || false}
+            row={row}
+            column={column}
+            titleField={options.titleField || 'description'}
+            editable={editable}
+            onSave={onSave}
           />
         );
       
@@ -1439,20 +1559,26 @@ const chartConfig = {
 // Generic TableCellViewer component
 export function TableCellViewer<TData extends Record<string, any>>({ 
   item, 
-  titleField = "header" 
+  titleField = "header",
+  customTrigger
 }: { 
   item: TData,
-  titleField?: string 
+  titleField?: string,
+  customTrigger?: React.ReactNode
 }) {
   const isMobile = useIsMobile()
   const title = item[titleField] || "Item Details"
   
+  const defaultTrigger = (
+    <Button variant="link" className="w-fit px-0 text-left text-foreground text-xs h-auto">
+      {title}
+    </Button>
+  );
+  
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="link" className="w-fit px-0 text-left text-foreground text-xs h-auto">
-          {title}
-        </Button>
+        {customTrigger ? <div>{customTrigger}</div> : defaultTrigger}
       </SheetTrigger>
       <SheetContent side="right" className="flex flex-col">
         <SheetHeader className="gap-1">
