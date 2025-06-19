@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/client'
-import { setCurrentTenant } from '@/lib/tenant'
 
 interface Company {
   id: string
@@ -77,14 +76,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           setCurrentCompany(selectedCompany)
           localStorage.setItem('selectedCompanyId', selectedCompany.id)
           
-          // Set the tenant in the database session for RLS
-          try {
-            await setCurrentTenant(selectedCompany.id)
-            // Also set cookie for server-side access
-            document.cookie = `selectedTenantId=${selectedCompany.id}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
-          } catch (error) {
-            console.error('Failed to initialize tenant session:', error)
-          }
+          // Set cookie for server-side access (no session state)
+          document.cookie = `selectedTenantId=${selectedCompany.id}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
         }
       } catch (error) {
         console.error('Error in loadUserCompanies:', error)
@@ -98,15 +91,15 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const switchCompany = async (company: Company) => {
     try {
-      // Set the current tenant in the database session for RLS
-      await setCurrentTenant(company.id)
-      
       // Update local state
       setCurrentCompany(company)
       localStorage.setItem('selectedCompanyId', company.id)
       
-      // Also set cookie for server-side access
+      // Set cookie for server-side access (explicit parameter approach)
       document.cookie = `selectedTenantId=${company.id}; path=/; max-age=${60 * 60 * 24 * 30}` // 30 days
+      
+      // Refresh the page to reload data with new tenant
+      window.location.reload()
     } catch (error) {
       console.error('Failed to switch tenant:', error)
       throw error

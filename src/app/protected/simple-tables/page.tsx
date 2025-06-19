@@ -7,7 +7,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { createClient } from "@/lib/server"
-import { initializeServerTenantSession } from "@/lib/server-tenant"
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 // Column definitions for each table
@@ -292,14 +292,8 @@ const bookingCategoryColumns: SimpleColumn[] = [
   }
 ]
 
-// Simple data fetching using database functions (better than views for tenant context)
-async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantId?: string) {
-  // Get tenant ID if not provided
-  if (!tenantId) {
-    // Try to get from a default tenant for now - in production this would come from session
-    tenantId = '00000000-0000-0000-0000-000000000001';
-  }
-
+// Simplified data fetching using database functions with explicit tenant parameters
+async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantId: string) {
   try {
     switch (dataType) {
       case 'bank_transactions_display':
@@ -308,9 +302,24 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         });
         if (btError) {
           console.error(`Error fetching bank transactions:`, btError);
-          return [];
+          return { data: [], options: {} };
         }
-        return btData || [];
+        
+        // Get options for bank transactions
+        const [partnerOptions, propertyOptions, bookingCategoryOptions] = await Promise.all([
+          supabase.rpc('get_partner_options_for_tenant', { tenant_id_param: tenantId }),
+          supabase.rpc('get_property_options_for_tenant', { tenant_id_param: tenantId }),
+          supabase.rpc('get_booking_category_options_for_tenant', { tenant_id_param: tenantId })
+        ]);
+        
+        return {
+          data: btData || [],
+          options: {
+            partners: partnerOptions.data || [],
+            properties: propertyOptions.data || [],
+            bookingCategories: bookingCategoryOptions.data || []
+          }
+        };
 
       case 'renters_display':
         const { data: rentersData, error: rentersError } = await supabase.rpc('get_renters_display', {
@@ -318,9 +327,9 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         });
         if (rentersError) {
           console.error(`Error fetching renters:`, rentersError);
-          return [];
+          return { data: [], options: {} };
         }
-        return rentersData || [];
+        return { data: rentersData || [], options: {} };
 
       case 'business_partners_display':
         const { data: bpData, error: bpError } = await supabase.rpc('get_business_partners_display', {
@@ -328,9 +337,9 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         });
         if (bpError) {
           console.error(`Error fetching business partners:`, bpError);
-          return [];
+          return { data: [], options: {} };
         }
-        return bpData || [];
+        return { data: bpData || [], options: {} };
 
       case 'booking_categories':
         // For booking categories, use direct query since it's simpler
@@ -343,9 +352,9 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         
         if (bcError) {
           console.error(`Error fetching booking categories:`, bcError);
-          return [];
+          return { data: [], options: {} };
         }
-        return bcData || [];
+        return { data: bcData || [], options: {} };
 
       case 'renters_payment_schedule':
         const { data: rpsData, error: rpsError } = await supabase.rpc('get_renters_payment_schedule_display', {
@@ -353,17 +362,17 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         });
         if (rpsError) {
           console.error(`Error fetching renters payment schedule:`, rpsError);
-          return [];
+          return { data: [], options: {} };
         }
-        return rpsData || [];
+        return { data: rpsData || [], options: {} };
 
       default:
         console.error(`Unknown data type: ${dataType}`);
-        return [];
+        return { data: [], options: {} };
     }
   } catch (error) {
     console.error(`Error in fetchTableDataWithTenant:`, error);
-    return [];
+    return { data: [], options: {} };
   }
 }
 
@@ -381,24 +390,25 @@ export default async function SimplifiedRealEstatePage({
     redirect('/auth/login')
   }
   
-  // Initialize tenant session
-  await initializeServerTenantSession()
+  // Get tenant ID from cookies with explicit parameter approach
+  const cookieStore = await cookies()
+  const tenantId = cookieStore.get('selectedTenantId')?.value || '00000000-0000-0000-0000-000000000001'
   
   const activeTab = resolvedSearchParams.tab || 'bank-transactions'
   
-  // Fetch data from simplified database functions
+  // Fetch data from simplified database functions with explicit tenant parameters
   const [
-    bankTransactions,
-    renters,
-    businessPartners,
-    bookingCategories,
-    rentersPaymentSchedule
+    bankTransactionsResult,
+    rentersResult,
+    businessPartnersResult,
+    bookingCategoriesResult,
+    rentersPaymentScheduleResult
   ] = await Promise.all([
-    fetchTableDataWithTenant(supabase, 'bank_transactions_display'),
-    fetchTableDataWithTenant(supabase, 'renters_display'),
-    fetchTableDataWithTenant(supabase, 'business_partners_display'),
-    fetchTableDataWithTenant(supabase, 'booking_categories'),
-    fetchTableDataWithTenant(supabase, 'renters_payment_schedule')
+    fetchTableDataWithTenant(supabase, 'bank_transactions_display', tenantId),
+    fetchTableDataWithTenant(supabase, 'renters_display', tenantId),
+    fetchTableDataWithTenant(supabase, 'business_partners_display', tenantId),
+    fetchTableDataWithTenant(supabase, 'booking_categories', tenantId),
+    fetchTableDataWithTenant(supabase, 'renters_payment_schedule', tenantId)
   ])
 
   function getTableNameForTab(tab: string): string {
@@ -415,31 +425,62 @@ export default async function SimplifiedRealEstatePage({
   function getDataForTab() {
     switch (activeTab) {
       case 'bank-transactions':
-        return { data: bankTransactions, columns: bankTransactionColumns, title: 'Bank Transactions' }
+        return { 
+          data: bankTransactionsResult.data, 
+          columns: bankTransactionColumns, 
+          title: 'Bank Transactions',
+          options: bankTransactionsResult.options
+        }
       case 'renters':
-        return { data: renters, columns: renterColumns, title: 'Renters' }
+        return { 
+          data: rentersResult.data, 
+          columns: renterColumns, 
+          title: 'Renters',
+          options: rentersResult.options
+        }
       case 'business-partners':
-        return { data: businessPartners, columns: businessPartnerColumns, title: 'Business Partners' }
+        return { 
+          data: businessPartnersResult.data, 
+          columns: businessPartnerColumns, 
+          title: 'Business Partners',
+          options: businessPartnersResult.options
+        }
       case 'booking-categories':
-        return { data: bookingCategories, columns: bookingCategoryColumns, title: 'Booking Categories' }
+        return { 
+          data: bookingCategoriesResult.data, 
+          columns: bookingCategoryColumns, 
+          title: 'Booking Categories',
+          options: bookingCategoriesResult.options
+        }
       case 'renters-payment-schedule':
-        return { data: rentersPaymentSchedule, columns: rentersPaymentScheduleColumns, title: 'Renters Payment Schedule' }
+        return { 
+          data: rentersPaymentScheduleResult.data, 
+          columns: rentersPaymentScheduleColumns, 
+          title: 'Renters Payment Schedule',
+          options: rentersPaymentScheduleResult.options
+        }
       default:
-        return { data: bankTransactions, columns: bankTransactionColumns, title: 'Bank Transactions' }
+        return { 
+          data: bankTransactionsResult.data, 
+          columns: bankTransactionColumns, 
+          title: 'Bank Transactions',
+          options: bankTransactionsResult.options
+        }
     }
   }
 
-  const { data, columns, title } = getDataForTab()
+  const { data, columns, title, options } = getDataForTab()
 
   // Debug: Log the data counts for troubleshooting
   console.log('Debug - Data counts:', {
-    bankTransactions: bankTransactions.length,
-    renters: renters.length,
-    businessPartners: businessPartners.length,
-    bookingCategories: bookingCategories.length,
-    rentersPaymentSchedule: rentersPaymentSchedule.length,
+    bankTransactions: bankTransactionsResult.data.length,
+    renters: rentersResult.data.length,
+    businessPartners: businessPartnersResult.data.length,
+    bookingCategories: bookingCategoriesResult.data.length,
+    rentersPaymentSchedule: rentersPaymentScheduleResult.data.length,
     activeTab,
-    selectedData: data.length
+    selectedData: data.length,
+    tenantId
   })
 
   return (
@@ -462,7 +503,7 @@ export default async function SimplifiedRealEstatePage({
                   <div className="mb-4">
                     <h1 className="text-2xl font-bold">{title}</h1>
                     <p className="text-sm text-muted-foreground">
-                      Simplified interface powered by database views and functions
+                      Simplified interface powered by database functions with explicit parameters
                     </p>
                   </div>
 
@@ -474,6 +515,7 @@ export default async function SimplifiedRealEstatePage({
                     paginated={true}
                     selectable={true}
                     pageSize={50}
+                    options={options}
                   />
                 </div>
               </div>

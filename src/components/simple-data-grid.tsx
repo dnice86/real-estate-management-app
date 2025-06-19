@@ -51,6 +51,11 @@ interface SimpleDataGridProps {
   paginated?: boolean
   selectable?: boolean
   pageSize?: number
+  options?: {
+    partners?: any[]
+    properties?: any[]
+    bookingCategories?: any[]
+  }
 }
 
 export function SimpleDataGrid({
@@ -62,7 +67,8 @@ export function SimpleDataGrid({
   searchable = true,
   paginated = true,
   selectable = false,
-  pageSize = 25
+  pageSize = 25,
+  options = {}
 }: SimpleDataGridProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -71,50 +77,36 @@ export function SimpleDataGrid({
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [dropdownOptions, setDropdownOptions] = useState<Record<string, any[]>>({})
 
-  // Load dropdown options on mount
-  useEffect(() => {
-    const loadDropdownOptions = async () => {
-      const options: Record<string, any[]> = {}
-      
-      // Load options for select columns
-      for (const column of columns) {
-        if (column.type === 'select' && !column.options) {
-          try {
-            if (column.key === 'partner_selection') {
-              const response = await fetch('/api/database/partner-options')
-              const data = await response.json()
-              options[column.key] = data.map((item: any) => ({
-                label: item.display_label,
-                value: JSON.stringify(item.value)
-              }))
-            } else if (column.key === 'property_ref') {
-              const response = await fetch('/api/database/property-options')
-              const data = await response.json()
-              options[column.key] = data.map((item: any) => ({
-                label: item.display_label,
-                value: item.id
-              }))
-            } else if (column.key === 'booking_category') {
-              const response = await fetch('/api/database/booking-category-options')
-              const data = await response.json()
-              options[column.key] = data.map((item: any) => ({
-                label: item.name,
-                value: item.name
-              }))
-            }
-          } catch (error) {
-            console.error(`Failed to load options for ${column.key}:`, error)
-          }
-        }
-      }
-      
-      setDropdownOptions(options)
+  // Convert options to the format expected by the component
+  const getOptionsForColumn = (column: SimpleColumn) => {
+    if (column.options) {
+      return column.options
     }
 
-    loadDropdownOptions()
-  }, [columns])
+    if (column.key === 'partner_selection' && options.partners) {
+      return options.partners.map((item: any) => ({
+        label: item.display_label,
+        value: JSON.stringify(item.value)
+      }))
+    }
+    
+    if (column.key === 'property_ref' && options.properties) {
+      return options.properties.map((item: any) => ({
+        label: item.display_label,
+        value: item.id
+      }))
+    }
+    
+    if (column.key === 'booking_category' && options.bookingCategories) {
+      return options.bookingCategories.map((item: any) => ({
+        label: item.name,
+        value: item.name
+      }))
+    }
+
+    return []
+  }
 
   // Filter data based on search term
   const filteredData = searchTerm
@@ -234,7 +226,7 @@ export function SimpleDataGrid({
 
     if (isEditing) {
       if (column.type === 'select') {
-        const options = column.options || dropdownOptions[column.key] || []
+        const columnOptions = getOptionsForColumn(column)
         return (
           <div className="flex items-center gap-1">
             <Select value={editValue} onValueChange={setEditValue}>
@@ -242,7 +234,7 @@ export function SimpleDataGrid({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {options.map((option) => (
+                {columnOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -292,8 +284,8 @@ export function SimpleDataGrid({
     } else if (column.type === 'date' && value) {
       displayValue = new Date(value).toLocaleDateString('de-DE')
     } else if (column.type === 'select') {
-      const options = column.options || dropdownOptions[column.key] || []
-      const option = options.find(opt => opt.value === value)
+      const columnOptions = getOptionsForColumn(column)
+      const option = columnOptions.find(opt => opt.value === value)
       displayValue = option ? option.label : value
     }
 
