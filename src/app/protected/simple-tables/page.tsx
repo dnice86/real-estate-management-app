@@ -342,13 +342,10 @@ async function fetchTableDataWithTenant(supabase: any, dataType: string, tenantI
         return { data: bpData || [], options: {} };
 
       case 'booking_categories':
-        // For booking categories, use direct query since it's simpler
-        const { data: bcData, error: bcError } = await supabase
-          .from('booking_categories')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .order('created_at', { ascending: false })
-          .limit(1000);
+        // Use database function for consistency with architecture
+        const { data: bcData, error: bcError } = await supabase.rpc('get_booking_categories_display', {
+          tenant_uuid: tenantId
+        });
         
         if (bcError) {
           console.error(`Error fetching booking categories:`, bcError);
@@ -480,7 +477,9 @@ export default async function SimplifiedRealEstatePage({
     rentersPaymentSchedule: rentersPaymentScheduleResult.data.length,
     activeTab,
     selectedData: data.length,
-    tenantId
+    tenantId,
+    cookieValue: cookieStore.get('selectedTenantId')?.value,
+    bookingCategoriesData: activeTab === 'booking-categories' ? bookingCategoriesResult.data.slice(0, 3) : 'not booking categories tab'
   })
 
   return (
