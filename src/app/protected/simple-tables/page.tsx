@@ -503,7 +503,7 @@ export default async function SimplifiedRealEstatePage({
                   <div className="mb-4">
                     <h1 className="text-2xl font-bold">{title}</h1>
                     <p className="text-sm text-muted-foreground">
-                      Simplified interface powered by database functions with explicit parameters
+                      Data Table Overview
                     </p>
                   </div>
 
