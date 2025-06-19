@@ -9,6 +9,6 @@ export default async function ProtectedPage() {
     redirect('/auth/login')
   }
 
-  // Redirect authenticated users directly to real estate tables
-  redirect('/protected/real-estate-tables')
+  // Redirect authenticated users to simplified tables interface
+  redirect('/protected/simple-tables')
 }
