@@ -29,6 +29,7 @@ import {
   IconEdit,
   IconCheck,
 } from "@tabler/icons-react"
+import { CsvUploadButton } from "./csv-upload-button"
 
 // Simple column configuration
 export interface SimpleColumn {
@@ -56,6 +57,7 @@ interface SimpleDataGridProps {
     properties?: any[]
     bookingCategories?: any[]
   }
+  tenantId?: string
 }
 
 export function SimpleDataGrid({
@@ -68,7 +70,8 @@ export function SimpleDataGrid({
   paginated = true,
   selectable = false,
   pageSize = 25,
-  options = {}
+  options = {},
+  tenantId
 }: SimpleDataGridProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -330,6 +333,10 @@ export function SimpleDataGrid({
               </Button>
             )}
           </div>
+          
+          {tableName === 'bank_transactions' && (
+            <CsvUploadButton tenantId={tenantId || ''} onImportComplete={onRefresh} />
+          )}
           
           {selectedRows.size > 0 && (
             <div className="text-sm text-muted-foreground">

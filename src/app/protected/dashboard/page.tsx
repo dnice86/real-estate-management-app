@@ -3,7 +3,6 @@
 import React, { useState } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import { CompanyProvider } from "@/components/company-context"
 import { DataTable } from "@/components/data-table"
 import { RentMatrix } from "@/components/rent-matrix"
 import { RentSummaryCards } from "@/components/rent-summary-cards"
@@ -47,7 +46,6 @@ export default function Page({
   const activeTab = resolvedSearchParams.tab || 'rent-overview'
 
   return (
-    <CompanyProvider>
       <SidebarProvider
         style={
           {
@@ -142,6 +140,5 @@ export default function Page({
           </div>
         </SidebarInset>
       </SidebarProvider>
-    </CompanyProvider>
   )
 }

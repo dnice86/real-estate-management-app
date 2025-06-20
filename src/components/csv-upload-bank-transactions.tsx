@@ -9,8 +9,6 @@ import { Dropzone, DropzoneContent, DropzoneEmptyState } from '@/components/drop
 import { useDropzone } from 'react-dropzone'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { createClient } from '@/lib/client'
-import { Loader2, Upload, AlertCircle, CheckCircle } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface CsvRow {
   [key: string]: string

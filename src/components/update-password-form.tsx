@@ -31,7 +31,7 @@ export function UpdatePasswordForm({ className, ...props }: React.ComponentProps
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
       // Redirect directly to real estate tables after password update
-      router.push('/protected/real-estate-tables')
+      router.push('/protected/simple-tables')
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {

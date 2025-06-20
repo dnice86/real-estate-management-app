@@ -36,7 +36,7 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       })
       if (error) throw error
       // Redirect directly to real estate tables after successful login
-      router.push('/protected/real-estate-tables')
+      router.push('/protected/simple-tables')
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {

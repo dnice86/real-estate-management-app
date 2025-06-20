@@ -24,7 +24,7 @@ export function SiteHeader() {
   
   // Determine the page title based on the current route
   const getPageTitle = () => {
-    if (pathname.includes('/protected/real-estate-tables')) {
+    if (pathname.includes('/protected/simple-tables')) {
       switch (currentTab) {
         case 'booking-categories':
           return 'Booking Categories'
@@ -40,7 +40,7 @@ export function SiteHeader() {
   }
 
   // Check if we should show the Import CSV button
-  const showImportButton = pathname.includes('/protected/real-estate-tables') && currentTab === 'bank-transactions'
+  const showImportButton = pathname.includes('/protected/simple-tables') && currentTab === 'bank-transactions'
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">

@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { CompanyProvider } from "@/components/company-context"
-import { SimpleDataGrid, SimpleColumn } from "@/components/simple-data-grid"
+import { SimpleColumn } from "@/components/simple-data-grid"
+import { SimpleDataGridWrapper } from "@/components/simple-data-grid-wrapper"
 import { SiteHeader } from "@/components/site-header"
 import {
   SidebarInset,
@@ -482,6 +483,9 @@ export default async function SimplifiedRealEstatePage({
     bookingCategoriesData: activeTab === 'booking-categories' ? bookingCategoriesResult.data.slice(0, 3) : 'not booking categories tab'
   })
 
+  // Additional debug for client side
+  const tenantIdForClient = tenantId || '00000000-0000-0000-0000-000000000001'
+
   return (
     <CompanyProvider>
       <SidebarProvider
@@ -506,7 +510,7 @@ export default async function SimplifiedRealEstatePage({
                     </p>
                   </div>
 
-                  <SimpleDataGrid
+                  <SimpleDataGridWrapper
                     data={data}
                     columns={columns}
                     tableName={getTableNameForTab(activeTab)}
@@ -515,6 +519,7 @@ export default async function SimplifiedRealEstatePage({
                     selectable={true}
                     pageSize={50}
                     options={options}
+                    tenantId={tenantIdForClient}
                   />
                 </div>
               </div>
