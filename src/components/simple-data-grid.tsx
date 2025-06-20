@@ -80,6 +80,74 @@ export function SimpleDataGrid({
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null)
   const [editValue, setEditValue] = useState('')
+  // Add optimistic updates state for better UX
+  // Initialize from sessionStorage to persist across refreshes
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Record<string, any>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem(`optimistic-updates-${tableName}`)
+      return stored ? JSON.parse(stored) : {}
+    }
+    return {}
+  })
+
+  // Store optimistic updates in sessionStorage when they change
+  useEffect(() => {
+    if (tableName && typeof window !== 'undefined') {
+      sessionStorage.setItem(`optimistic-updates-${tableName}`, JSON.stringify(optimisticUpdates))
+    }
+  }, [optimisticUpdates, tableName])
+
+  // Clear old optimistic updates when new data arrives
+  useEffect(() => {
+    // Don't run on first mount
+    if (data.length === 0) return
+    
+    // Check if any optimistic updates have been applied to the actual data
+    const updatesToRemove: string[] = []
+    
+    Object.keys(optimisticUpdates).forEach(updateKey => {
+      const [rowId, ...columnParts] = updateKey.split('-')
+      const columnKey = columnParts.join('-') // Handle IDs with dashes
+      const row = data.find(r => r.id === rowId)
+      
+      if (row) {
+        // For partner/property selections, check if the names have been updated
+        if (columnKey === 'partner_selection') {
+          // Check if partner_name has been updated (not empty)
+          const options = getOptionsForColumn({ key: 'partner_selection', type: 'select' } as SimpleColumn)
+          const selectedOption = options.find(opt => opt.value === optimisticUpdates[updateKey])
+          if (selectedOption && row.partner_name === selectedOption.label) {
+            updatesToRemove.push(updateKey)
+          }
+        } else if (columnKey === 'property_ref') {
+          // Check if property_name has been updated
+          const options = getOptionsForColumn({ key: 'property_ref', type: 'select' } as SimpleColumn)
+          const selectedOption = options.find(opt => opt.value === optimisticUpdates[updateKey])
+          if (selectedOption && row.property_name === selectedOption.label) {
+            updatesToRemove.push(updateKey)
+          }
+        } else if (row[columnKey] === optimisticUpdates[updateKey]) {
+          // The optimistic value now matches the actual value
+          updatesToRemove.push(updateKey)
+        }
+      }
+    })
+    
+    if (updatesToRemove.length > 0) {
+      console.log('Removing optimistic updates that have been applied:', updatesToRemove)
+      setOptimisticUpdates(prev => {
+        const newUpdates = { ...prev }
+        updatesToRemove.forEach(key => delete newUpdates[key])
+        return newUpdates
+      })
+    }
+  }, [data, options])
+
+  // Helper to get the current value (optimistic or real)
+  const getCellValue = (rowId: string, columnKey: string, originalValue: any) => {
+    const updateKey = `${rowId}-${columnKey}`
+    return optimisticUpdates[updateKey] !== undefined ? optimisticUpdates[updateKey] : originalValue
+  }
 
   // Convert options to the format expected by the component
   const getOptionsForColumn = (column: SimpleColumn) => {
@@ -97,7 +165,7 @@ export function SimpleDataGrid({
     if (column.key === 'property_ref' && options.properties) {
       return options.properties.map((item: any) => ({
         label: item.display_label,
-        value: item.id
+        value: String(item.id)  // Ensure ID is string
       }))
     }
     
@@ -167,8 +235,29 @@ export function SimpleDataGrid({
   const handleCellSave = async () => {
     if (!editingCell) return
 
+    const updateKey = `${editingCell.id}-${editingCell.field}`
+    
+    // Log what we're about to save for debugging
+    console.log('Saving cell:', {
+      table: tableName,
+      id: editingCell.id,
+      field: editingCell.field,
+      value: editValue,
+      valueType: typeof editValue
+    })
+    
     try {
-      // Call the simplified update API
+      // 1. Apply optimistic update immediately for better UX
+      setOptimisticUpdates(prev => ({
+        ...prev,
+        [updateKey]: editValue
+      }))
+      
+      // 2. Clear editing state immediately
+      setEditingCell(null)
+      setEditValue('')
+      
+      // 3. Make the API call
       const response = await fetch('/api/database/update', {
         method: 'POST',
         headers: {
@@ -182,20 +271,40 @@ export function SimpleDataGrid({
         }),
       })
 
+      const responseData = await response.json()
+      console.log('Update response:', responseData)
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Update failed')
+        throw new Error(responseData.error || 'Update failed')
       }
 
+      // 4. Show success message
       toast.success('Updated successfully')
-      onRefresh?.()
+      
+      // 5. DON'T clear the optimistic update immediately
+      // Let the refresh handle it after confirming the database is updated
+      // Increase delay to ensure database triggers have completed
+      setTimeout(() => {
+        if (onRefresh) {
+          onRefresh()
+        }
+      }, 2500) // Increased delay to ensure database updates complete
+      
     } catch (error) {
-      toast.error('Failed to update')
+      // Revert optimistic update on error
+      setOptimisticUpdates(prev => {
+        const newUpdates = { ...prev }
+        delete newUpdates[updateKey]
+        return newUpdates
+      })
+      
+      // Restore editing state so user can try again
+      setEditingCell({ id: editingCell.id, field: editingCell.field })
+      setEditValue(editValue)
+      
+      toast.error('Failed to update: ' + (error as Error).message)
       console.error('Update error:', error)
     }
-
-    setEditingCell(null)
-    setEditValue('')
   }
 
   const handleCellCancel = () => {
@@ -224,7 +333,8 @@ export function SimpleDataGrid({
 
   // Render cell content
   const renderCell = (row: any, column: SimpleColumn) => {
-    const value = row[column.key]
+    // Get the value (optimistic or real)
+    const value = getCellValue(row.id, column.key, row[column.key])
     const isEditing = editingCell?.id === row.id && editingCell?.field === column.key
 
     if (isEditing) {
@@ -287,23 +397,61 @@ export function SimpleDataGrid({
     } else if (column.type === 'date' && value) {
       displayValue = new Date(value).toLocaleDateString('de-DE')
     } else if (column.type === 'select') {
-      const columnOptions = getOptionsForColumn(column)
-      const option = columnOptions.find(opt => opt.value === value)
-      displayValue = option ? option.label : value
+      // Special handling for select fields that show computed values
+      if (column.key === 'booking_category') {
+        // For booking category, the value IS the display value
+        displayValue = value || ''
+      } else if (column.key === 'partner_selection') {
+        // Check if we have an optimistic update
+        const updateKey = `${row.id}-${column.key}`
+        if (optimisticUpdates[updateKey]) {
+          // Find the label for the optimistically updated value
+          const columnOptions = getOptionsForColumn(column)
+          const option = columnOptions.find(opt => opt.value === optimisticUpdates[updateKey])
+          displayValue = option ? option.label : 'Select Partner'
+        } else {
+          // Show the partner name from the related field
+          displayValue = row.partner_name || 'Select Partner'
+        }
+      } else if (column.key === 'property_ref') {
+        // Check if we have an optimistic update
+        const updateKey = `${row.id}-${column.key}`
+        if (optimisticUpdates[updateKey]) {
+          // Find the label for the optimistically updated value
+          const columnOptions = getOptionsForColumn(column)
+          const option = columnOptions.find(opt => opt.value === optimisticUpdates[updateKey])
+          displayValue = option ? option.label : 'Select Property'
+        } else {
+          // Show the property name from the related field
+          displayValue = row.property_name || 'Select Property'
+        }
+      } else {
+        // For other select fields, try to find the label
+        const columnOptions = getOptionsForColumn(column)
+        const option = columnOptions.find(opt => opt.value === value)
+        displayValue = option ? option.label : value
+      }
     }
 
+    // Check if this is an empty select field that needs attention
+    const isEmptySelect = column.type === 'select' && 
+      (column.key === 'partner_selection' && !row.partner_name && !optimisticUpdates[`${row.id}-${column.key}`] ||
+       column.key === 'property_ref' && !row.property_name && !optimisticUpdates[`${row.id}-${column.key}`] ||
+       column.key === 'booking_category' && !value && !optimisticUpdates[`${row.id}-${column.key}`])
+
     return (
-      <div className="flex items-center justify-between group">
-        <span className="text-xs truncate flex-1">{displayValue}</span>
+      <div className={`flex items-center justify-between group ${
+        column.editable ? 'hover:bg-muted/50 -mx-1 px-1 rounded cursor-pointer' : ''
+      }`}
+        onClick={() => column.editable && handleCellEdit(row.id, column.key, value)}
+      >
+        <span className={`text-xs truncate flex-1 ${
+          isEmptySelect ? 'text-muted-foreground italic' : ''
+        }`}>
+          {displayValue}
+        </span>
         {column.editable && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 ml-1"
-            onClick={() => handleCellEdit(row.id, column.key, value)}
-          >
-            <IconEdit size={10} />
-          </Button>
+          <IconEdit size={10} className="opacity-0 group-hover:opacity-100 text-muted-foreground" />
         )}
       </div>
     )

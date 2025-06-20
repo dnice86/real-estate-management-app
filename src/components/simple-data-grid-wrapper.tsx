@@ -32,6 +32,12 @@ export function SimpleDataGridWrapper({
   // Ensure tenantId is passed correctly to the SimpleDataGrid
   console.log('SimpleDataGridWrapper - tenantId:', tenantId)
   
+  const handleRefresh = () => {
+    // Use replace instead of reload to avoid history pollution
+    // This maintains a cleaner browser history
+    window.location.replace(window.location.href)
+  }
+  
   return (
     <SimpleDataGrid
       data={data}
@@ -43,10 +49,7 @@ export function SimpleDataGridWrapper({
       pageSize={pageSize}
       options={options}
       tenantId={tenantId}
-      onRefresh={() => {
-        // Refresh logic here if needed
-        window.location.reload()
-      }}
+      onRefresh={handleRefresh}
     />
   )
 }

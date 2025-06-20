@@ -14,11 +14,11 @@ import { redirect } from 'next/navigation'
 // Column definitions for each table
 const bankTransactionColumns: SimpleColumn[] = [
   {
-    key: 'description',
-    label: 'Description',
+    key: 'payer',
+    label: 'Payer',
     type: 'text',
     editable: true,
-    width: 'w-64'
+    width: 'w-40'
   },
   {
     key: 'amount_formatted',
@@ -27,11 +27,11 @@ const bankTransactionColumns: SimpleColumn[] = [
     width: 'w-24'
   },
   {
-    key: 'payer',
-    label: 'Payer',
+    key: 'description',
+    label: 'Description',
     type: 'text',
     editable: true,
-    width: 'w-40'
+    width: 'w-64'
   },
   {
     key: 'date_formatted',
@@ -41,28 +41,23 @@ const bankTransactionColumns: SimpleColumn[] = [
   },
   {
     key: 'booking_category',
-    label: 'Category',
+    label: 'Booking Category',
     type: 'select',
     editable: true,
     width: 'w-32'
   },
   {
-    key: 'partner_name',
-    label: 'Current Partner',
-    type: 'text',
-    width: 'w-40'
-  },
-  {
     key: 'partner_selection',
-    label: 'Update Partner',
+    label: 'Partner',
     type: 'select',
     editable: true,
     width: 'w-40'
   },
   {
-    key: 'property_name',
+    key: 'property_ref',
     label: 'Property',
-    type: 'text',
+    type: 'select',
+    editable: true,
     width: 'w-40'
   },
   {
